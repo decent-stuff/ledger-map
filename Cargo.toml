@@ -34,7 +34,7 @@ clap = "4.5.23"
 fs-err = "3.0.0"
 log = "0.4.22"
 dirs = "5.0.1"
-env_logger = "0.11.5"
+env_logger = "0.11.6"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 ic-cdk = "0.17.1"
