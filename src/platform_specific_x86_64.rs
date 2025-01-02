@@ -21,7 +21,7 @@ impl BackingFile {
         fs_err::create_dir_all(file_path.parent().expect("Could not find parent directory"))
             .map_err(|e| format!("{:?}", e))?;
 
-        info!("Opening persistent storage {:?}", file_path);
+        debug!("Opening persistent storage {:?}", file_path);
 
         let file = OpenOptions::new()
             .read(true)

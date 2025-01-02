@@ -422,7 +422,7 @@ impl LedgerMap {
                 }
             }
         }
-        info!("Ledger refreshed successfully");
+        debug!("Ledger refreshed successfully");
 
         Ok(())
     }
