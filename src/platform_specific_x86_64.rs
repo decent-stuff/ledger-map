@@ -1,6 +1,6 @@
-/// This module contains functionalities specific to the x86_64 architecture.
+/// This module contains functionalities specific to the x86_64/aarch64 architecture.
 /// It includes implementations and optimizations tailored for this 64-bit environment,
-/// allowing LedgerMap to run on x86_64 platforms and share most of the code with
+/// allowing LedgerMap to run on x86_64/aarch64 platforms and share most of the code with
 /// the wasm32 platform.
 ///
 use std::io::{Read, Seek, SeekFrom, Write};

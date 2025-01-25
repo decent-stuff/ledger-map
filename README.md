@@ -4,7 +4,7 @@
 
 LedgerMap is a key-value store implemented in Rust. The primary feature of this library is its ability to store data in an append-only fashion, effectively forming a ledger. Additionally, it supports data integrity checks using SHA-256 checksums for ledger entries.
 
-This library is designed for use in smart contract environments, capable of compiling for `wasm32` targets while also being usable and testable on `x86_64` architectures.
+This library is designed for use in smart contract environments, capable of compiling for `wasm32` targets while also being usable and testable on `x86_64` and `aarch64` architectures.
 
 > **Note**: This library is still in the development stage. Use it at your own risk.
 
@@ -69,7 +69,7 @@ fn main() {
 
 - Append-Only Storage: Data is stored in an append-only manner, forming a ledger.
 - Data Integrity: Uses SHA-256 checksums for verifying the integrity of ledger entries.
-- Platform Support: Designed to work on both wasm32 and x86_64 targets.
+- Platform Support: Designed to work on both wasm32 and x86_64/aarch64 targets.
 
 ## Dependencies
 

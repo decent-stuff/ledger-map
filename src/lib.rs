@@ -67,11 +67,11 @@ use ledger_entry::LedgerBlockHeader;
 #[cfg(target_arch = "wasm32")]
 pub use platform_specific_wasm32 as platform_specific;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub mod platform_specific_x86_64;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub use platform_specific::{debug, error, info, warn};
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub use platform_specific_x86_64 as platform_specific;
 
 pub mod ledger_entry;
@@ -229,7 +229,7 @@ impl LedgerMap {
         Ok(result)
     }
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     pub fn new_with_path(
         labels_to_index: Option<Vec<String>>,
         path: Option<std::path::PathBuf>,
@@ -238,7 +238,7 @@ impl LedgerMap {
         Self::new(labels_to_index)
     }
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     pub fn get_file_path(&self) -> Option<std::path::PathBuf> {
         platform_specific::get_backing_file_path()
     }

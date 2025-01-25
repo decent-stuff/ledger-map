@@ -29,7 +29,7 @@ lazy_static = "1.5.0"
 serde = { version = "1.0.217", features = ["derive"] }
 sha2 = "0.10.8"
 
-[target.'cfg(target_arch = "x86_64")'.dependencies]
+[target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
 clap = "4.5.27"
 fs-err = "3.1.0"
 log = "0.4.25"
