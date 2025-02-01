@@ -130,6 +130,7 @@ impl WasmLedgerMap {
         let entries: Vec<_> = self.inner.iter(label.as_deref()).collect();
         let arr = Array::new();
         for entry in entries {
+            info!("entry: {:#?}", entry);
             let wasm_entry = WasmLedgerEntry {
                 label: entry.label().to_string(),
                 key: entry.key().to_vec(),
@@ -160,3 +161,7 @@ impl WasmLedgerMap {
         self.inner.get_next_block_entries_count(label.as_deref())
     }
 }
+
+#[cfg(test)]
+#[path = "wasm_tests.rs"]
+mod wasm_tests;
