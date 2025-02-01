@@ -39,8 +39,8 @@ env_logger = "0.11.6"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "0.2.100", optional = true }
-js-sys = { version = "0.3.66", optional = true }
-web-sys = { version = "0.3.66", features = [
+js-sys = { version = "0.3.77", optional = true }
+web-sys = { version = "0.3.77", features = [
     "Storage",
     "Window",
     "console",
@@ -65,4 +65,4 @@ browser = [
 ic = ["ic-cdk", "ic-cdk-timers", "ic-canister-log"]
 
 [dev-dependencies]
-tempfile = "3.15.0"
+tempfile = "3.16.0"
