@@ -113,6 +113,20 @@ async function example() {
 }
 ```
 
+Typescript tests: there are tests that run with npm (node.js) and tests that require a browser.
+
+The first class of tests can be ran with
+
+```bash
+npm run test
+```
+
+The second class of tests have to be run with
+
+```bash
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' wasm-pack test --chrome --features browser
+```
+
 ## API
 
 ### `LedgerMapWrapper`
