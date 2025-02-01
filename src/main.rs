@@ -2,9 +2,9 @@
 ///
 /// The CLI allows various ledger operations, such as listing, inserting/updating (upserting), and deleting entries.
 ///
-use ledger_map::LedgerMap;
-
+#[cfg(not(target_arch = "wasm32"))]
 use clap::{arg, Arg, Command};
+use ledger_map::LedgerMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Once;
@@ -18,6 +18,7 @@ struct ParsedArgs {
 }
 
 /// Parse the command-line arguments using clap library
+#[cfg(not(target_arch = "wasm32"))]
 fn parse_args() -> ParsedArgs {
     let matches = Command::new("LedgerMap CLI")
         .about("LedgerMap CLI")
@@ -53,6 +54,17 @@ fn parse_args() -> ParsedArgs {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn parse_args() -> ParsedArgs {
+    ParsedArgs {
+        list: false,
+        upsert: None,
+        delete: None,
+        path: None,
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn logs_init() {
     // Set log level to info by default
     if std::env::var("RUST_LOG").is_err() {
@@ -60,6 +72,9 @@ fn logs_init() {
     }
     env_logger::init_from_env("RUST_LOG");
 }
+
+#[cfg(target_arch = "wasm32")]
+fn logs_init() {}
 
 static INIT: Once = Once::new();
 

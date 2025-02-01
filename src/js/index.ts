@@ -55,9 +55,6 @@ export class LedgerMap {
     }
 
     /**
-     * Begin a new block of operations
-     */
-    /**
      * Commit the current block of operations
      */
     commitBlock(): void {

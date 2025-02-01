@@ -6,12 +6,18 @@ mod tests {
 
     use crate::{partition_table, LedgerBlock, LedgerEntry, LedgerError, LedgerMap, Operation};
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn log_init() {
         // Set log level to info by default
         if std::env::var("RUST_LOG").is_err() {
             std::env::set_var("RUST_LOG", "info");
         }
         let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn log_init() {
+        // No-op for wasm
     }
 
     fn new_temp_ledger(labels_to_index: Option<Vec<String>>) -> LedgerMap {

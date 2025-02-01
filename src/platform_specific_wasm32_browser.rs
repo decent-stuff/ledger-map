@@ -105,13 +105,11 @@ pub fn persistent_storage_grow(_additional_pages: u64) -> Result<u64, String> {
     Ok(persistent_storage_size_bytes())
 }
 
-#[wasm_bindgen]
-pub fn set_backing_file(_path: Option<String>) -> Result<(), JsValue> {
+pub fn set_backing_file(_path: Option<std::path::PathBuf>) -> Result<(), String> {
     Ok(()) // No-op for browser implementation
 }
 
-#[wasm_bindgen]
-pub fn get_backing_file_path() -> Option<String> {
+pub fn get_backing_file_path() -> Option<std::path::PathBuf> {
     None // No backing file in browser implementation
 }
 
