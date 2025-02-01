@@ -1,0 +1,31 @@
+{
+  "name": "ledger-map-wasm",
+  "version": "0.4.0",
+  "description": "WebAssembly build of ledger-map for browser usage",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build:wasm": "RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' wasm-pack build --target web --out-dir dist/wasm --features browser",
+    "build:ts": "tsc",
+    "build": "npm run clean && npm run build:wasm && npm run build:ts",
+    "test": "RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' wasm-pack test --node --features browser",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "wasm",
+    "ledger",
+    "key-value",
+    "storage"
+  ],
+  "author": "decent-cloud",
+  "license": "MIT OR Apache-2.0",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "rimraf": "^5.0.0"
+  }
+}

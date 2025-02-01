@@ -1,4 +1,5 @@
-#[cfg(target_arch = "wasm32")]
+#[allow(unused_imports)]
+#[cfg(all(target_arch = "wasm32", feature = "ic"))]
 use ic_cdk::println;
 
 use serde::Serialize;

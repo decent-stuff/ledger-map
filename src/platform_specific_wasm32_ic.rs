@@ -1,10 +1,10 @@
-/// This module contains functionalities specific to the WebAssembly (WASM) 32-bit platform.
-/// It provides implementations and abstractions that are unique to this environment,
-/// enabling LedgerMap to run on the Internet Computer Platform, which uses wasm32 for canisters.
+/// This module contains functionalities specific to the WebAssembly (WASM) 32-bit builds for the Internet Computer.
+/// It provides implementations and abstractions unique to the environment.
 ///
 pub use crate::{debug, error, info, warn}; // created in the crate root by macro_export
 pub use ic_canister_log::log;
 use ic_canister_log::{declare_log_buffer, export, LogEntry};
+#[allow(unused_imports)]
 use ic_cdk::println;
 
 // Keep up to "capacity" last messages.
@@ -16,28 +16,28 @@ declare_log_buffer!(name = ERROR, capacity = 10000);
 #[macro_export]
 macro_rules! debug {
     ($message:expr $(,$args:expr)* $(,)*) => {{
-        $crate::platform_specific_wasm32::log!($crate::platform_specific_wasm32::DEBUG, $message $(,$args)*);
+        $crate::platform_specific_wasm32_ic::log!($crate::platform_specific_wasm32_ic::DEBUG, $message $(,$args)*);
     }}
 }
 
 #[macro_export]
 macro_rules! info {
     ($message:expr $(,$args:expr)* $(,)*) => {{
-        $crate::platform_specific_wasm32::log!($crate::platform_specific_wasm32::INFO, $message $(,$args)*);
+        $crate::platform_specific_wasm32_ic::log!($crate::platform_specific_wasm32_ic::INFO, $message $(,$args)*);
     }}
 }
 
 #[macro_export]
 macro_rules! warn {
     ($message:expr $(,$args:expr)* $(,)*) => {{
-        $crate::platform_specific_wasm32::log!($crate::platform_specific_wasm32::WARN, $message $(,$args)*);
+        $crate::platform_specific_wasm32_ic::log!($crate::platform_specific_wasm32_ic::WARN, $message $(,$args)*);
     }}
 }
 
 #[macro_export]
 macro_rules! error {
     ($message:expr $(,$args:expr)* $(,)*) => {{
-        $crate::platform_specific_wasm32::log!($crate::platform_specific_wasm32::ERROR, $message $(,$args)*);
+        $crate::platform_specific_wasm32_ic::log!($crate::platform_specific_wasm32_ic::ERROR, $message $(,$args)*);
     }}
 }
 

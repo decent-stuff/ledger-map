@@ -2,13 +2,24 @@
 
 ## Overview
 
-LedgerMap is a key-value store implemented in Rust. The primary feature of this library is its ability to store data in an append-only fashion, effectively forming a ledger. Additionally, it supports data integrity checks using SHA-256 checksums for ledger entries.
+LedgerMap provides a persistent key-value storage system with blockchain-like properties, implemented in Rust and compiled to WebAssembly.
 
-This library is designed for use in smart contract environments, capable of compiling for `wasm32` targets while also being usable and testable on `x86_64` and `aarch64` architectures.
+The primary feature of this library is its ability to store data in an append-only fashion, effectively forming a ledger. Additionally, it supports data integrity checks using SHA-256 checksums for ledger entries.
 
-> **Note**: This library is still in the development stage. Use it at your own risk.
+This library is designed for use in smart contract environments, and compiles to `wasm32`, `x86_64`, and `aarch64` architectures.
+The WebAssembly builds are intended for browser usage.
+
+## Features
+
+- Persistent key-value storage using browser's localStorage
+- Data integrity protected with SHA-256 checksums
+- Block-based storage with chain hashing
+- Multiple label support for organizing data
+- TypeScript support
 
 ## Installation
+
+### Rust
 
 Add LedgerMap to your `Cargo.toml`:
 
@@ -17,7 +28,15 @@ Add LedgerMap to your `Cargo.toml`:
 ledger-map = "0.4.0"
 ```
 
+### Node.js and Typescript
+
+```bash
+npm install ledger-map-wasm
+```
+
 ## Usage
+
+### Rust
 
 Here is a basic example to get you started:
 
@@ -65,19 +84,83 @@ fn main() {
 }
 ```
 
-## Features
+### Typescript
 
-- Append-Only Storage: Data is stored in an append-only manner, forming a ledger.
-- Data Integrity: Uses SHA-256 checksums for verifying the integrity of ledger entries.
-- Platform Support: Designed to work on both wasm32 and x86_64/aarch64 targets.
+```typescript
+import { LedgerMapWrapper } from "ledger-map-wasm";
 
-## Dependencies
+async function example() {
+  // Initialize
+  const ledger = new LedgerMapWrapper();
+  await ledger.initialize();
 
-This library is implemented in pure Rust.
+  // Store data
+  const key = new Uint8Array([1, 2, 3]);
+  const value = new Uint8Array([4, 5, 6]);
 
-## Contributing
+  ledger.beginBlock();
+  ledger.upsert("my-label", key, value);
+  ledger.commitBlock();
 
-We welcome contributions! Please submit a pull request if you would like to contribute.
+  // Retrieve data
+  const retrieved = ledger.get("my-label", key);
+  console.log(retrieved); // Uint8Array [4, 5, 6]
+
+  // Delete data
+  ledger.beginBlock();
+  ledger.delete("my-label", key);
+  ledger.commitBlock();
+}
+```
+
+## API
+
+### `LedgerMapWrapper`
+
+Main class for interacting with the ledger.
+
+#### Methods
+
+- `async initialize(labels?: string[]): Promise<void>`
+  Initialize the ledger. Optionally specify labels to index.
+
+- `upsert(label: string, key: Uint8Array, value: Uint8Array): void`
+  Store or update a value.
+
+- `get(label: string, key: Uint8Array): Uint8Array`
+  Retrieve a value.
+
+- `delete(label: string, key: Uint8Array): void`
+  Delete a value.
+
+- `beginBlock(): void`
+  Start a new block of operations.
+
+- `commitBlock(): void`
+  Commit the current block of operations.
+
+- `getBlocksCount(): number`
+  Get the total number of blocks.
+
+- `getLatestBlockHash(): Uint8Array`
+  Get the hash of the latest block.
+
+- `refreshLedger(): void`
+  Reload the ledger from storage.
+
+## Development
+
+### Building
+
+```bash
+npm run build
+```
+
+### Testing
+
+```bash
+npm test
+```
 
 ## License
 
@@ -92,6 +175,7 @@ at your option.
 
 ## Contribution
 
+Contributions are welcome.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
