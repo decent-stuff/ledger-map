@@ -1,195 +1,226 @@
 # LedgerMap
 
-## Overview
+[![Crates.io](https://img.shields.io/crates/v/ledger-map.svg)](https://crates.io/crates/ledger-map)
+[![npm](https://img.shields.io/npm/v/@decent-stuff/ledger-map.svg)](https://www.npmjs.com/package/@decent-stuff/ledger-map)
+[![Documentation](https://docs.rs/ledger-map/badge.svg)](https://docs.rs/ledger-map)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 
-LedgerMap provides a persistent key-value storage system with blockchain-like properties, implemented in Rust and compiled to WebAssembly.
+A secure, persistent key-value storage system with blockchain-like properties, implemented in Rust and compiled to WebAssembly.
 
-The primary feature of this library is its ability to store data in an append-only fashion, effectively forming a ledger. Additionally, it supports data integrity checks using SHA-256 checksums for ledger entries.
+## Key Features
 
-This library is designed for use in smart contract environments, and compiles to `wasm32`, `x86_64`, and `aarch64` architectures.
-The WebAssembly builds are intended for browser usage.
+- 🔒 **Secure Storage**: Data integrity protected with SHA-256 checksums
+- 📝 **Append-Only Ledger**: Blockchain-like data structure
+- 🔄 **Cross-Platform**: Native support for `wasm32`, `x86_64`, and `aarch64`
+- 🌐 **Browser Ready**: WebAssembly builds for browser environments
+- 🏷️ **Label Support**: Organize data with multiple labels
+- 📦 **TypeScript Support**: First-class TypeScript definitions
 
-## Features
+## Quick Start
 
-- Persistent key-value storage using browser's localStorage
-- Data integrity protected with SHA-256 checksums
-- Block-based storage with chain hashing
-- Multiple label support for organizing data
-- TypeScript support
+### Rust Projects
+
+```toml
+# Cargo.toml
+[dependencies]
+ledger-map = "0.4.2"
+```
+
+```rust
+use ledger_map::LedgerMap;
+
+// Create a new ledger map
+let mut map = LedgerMap::new_with_path(None, None)
+    .expect("Failed to create LedgerMap");
+
+// Store data
+map.upsert("users", b"alice".to_vec(), b"data".to_vec())
+    .unwrap();
+map.commit_block().unwrap();
+
+// Retrieve data
+let value = map.get("users", &b"alice".to_vec());
+```
+
+### Web/TypeScript Projects
+
+```bash
+npm install @decent-stuff/ledger-map
+```
+
+```typescript
+import { LedgerMapWrapper } from "@decent-stuff/ledger-map";
+
+// Initialize
+const ledger = new LedgerMapWrapper();
+await ledger.initialize();
+
+// Store data
+const key = new TextEncoder().encode("alice");
+const value = new TextEncoder().encode("data");
+
+ledger.beginBlock();
+ledger.upsert("users", key, value);
+ledger.commitBlock();
+
+// Retrieve data
+const retrieved = ledger.get("users", key);
+```
 
 ## Installation
 
 ### Rust
 
-Add LedgerMap to your `Cargo.toml`:
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ledger-map = "0.4.0"
+ledger-map = "0.4.2"
 ```
 
-### Node.js and Typescript
+For specific features:
+
+```toml
+# For browser/WebAssembly support
+ledger-map = { version = "0.4.2", features = ["browser"] }
+
+# For Internet Computer support
+ledger-map = { version = "0.4.2", features = ["ic"] }
+```
+
+### Web/TypeScript
 
 ```bash
-npm install ledger-map-wasm
+# Using npm
+npm install @decent-stuff/ledger-map
+
+# Using yarn
+yarn add @decent-stuff/ledger-map
+
+# Using pnpm
+pnpm add @decent-stuff/ledger-map
 ```
 
-## Usage
+## Detailed Usage
 
-### Rust
-
-Here is a basic example to get you started:
+### Rust API
 
 ```rust
- use ledger_map::{LedgerMap};
- use env_logger::Env;
+use ledger_map::{LedgerMap};
+use env_logger::Env;
 
 fn main() {
-    // Optional: set log level to info by default
+    // Initialize logging (optional)
     env_logger::try_init_from_env(Env::default().default_filter_or("info")).unwrap();
 
-    // Optional: Use custom file path for the persistent storage
-    // let ledger_path = Some(std::path::PathBuf::from("/tmp/ledger_map/test_data.bin"));
-    let ledger_path = None;
+    // Create LedgerMap with optional custom storage path
+    let mut ledger_map = LedgerMap::new_with_path(
+        None,  // No specific labels to index
+        None   // Use default storage path
+    ).expect("Failed to create LedgerMap");
 
-    // Create a new LedgerMap instance, and index all labels for quick search
-    let mut ledger_map = LedgerMap::new_with_path(None, ledger_path).expect("Failed to create LedgerMap");
-
-    // Insert a few new entries, each with a separate label
-    ledger_map.upsert("Label1", b"key1".to_vec(), b"value1".to_vec()).unwrap();
-    ledger_map.upsert("Label2", b"key2".to_vec(), b"value2".to_vec()).unwrap();
+    // Store data with labels
+    ledger_map.upsert("users", b"alice".to_vec(), b"data1".to_vec()).unwrap();
+    ledger_map.upsert("posts", b"post1".to_vec(), b"content".to_vec()).unwrap();
     ledger_map.commit_block().unwrap();
 
-    // Retrieve all entries
-    let entries = ledger_map.iter(None).collect::<Vec<_>>();
-    println!("All entries: {:?}", entries);
+    // Query by label
+    let user_entries = ledger_map.iter(Some("users")).collect::<Vec<_>>();
+    let post_entries = ledger_map.iter(Some("posts")).collect::<Vec<_>>();
 
-    // Iterate only over entries with the Label1 label
-    let entries = ledger_map.iter(Some("Label1")).collect::<Vec<_>>();
-    println!("Label1 entries: {:?}", entries);
-
-    // Iterate only over entries with the Label2 label
-    let entries = ledger_map.iter(Some("Label2")).collect::<Vec<_>>();
-    println!("Label2 entries: {:?}", entries);
-
-    // Delete an entry from Label1
-    ledger_map.delete("Label1", b"key1".to_vec()).unwrap();
+    // Delete data
+    ledger_map.delete("users", b"alice".to_vec()).unwrap();
     ledger_map.commit_block().unwrap();
-
-    // Label1 entries are now empty
-    assert_eq!(ledger_map.iter(Some("Label1")).count(), 0);
-
-    // Label2 entries still exist
-    assert_eq!(ledger_map.iter(Some("Label2")).count(), 1);
 }
 ```
 
-### Typescript
+### TypeScript API
 
 ```typescript
-import { LedgerMapWrapper } from "ledger-map-wasm";
+import { LedgerMapWrapper } from "@decent-stuff/ledger-map";
 
 async function example() {
   // Initialize
   const ledger = new LedgerMapWrapper();
-  await ledger.initialize();
+  await ledger.initialize(["users", "posts"]); // Pre-index labels
 
   // Store data
-  const key = new Uint8Array([1, 2, 3]);
-  const value = new Uint8Array([4, 5, 6]);
+  const key = new TextEncoder().encode("user1");
+  const value = new TextEncoder().encode(JSON.stringify({ name: "Alice" }));
 
   ledger.beginBlock();
-  ledger.upsert("my-label", key, value);
+  ledger.upsert("users", key, value);
   ledger.commitBlock();
 
   // Retrieve data
-  const retrieved = ledger.get("my-label", key);
-  console.log(retrieved); // Uint8Array [4, 5, 6]
+  const retrieved = ledger.get("users", key);
+  const userData = JSON.parse(new TextDecoder().decode(retrieved));
 
   // Delete data
   ledger.beginBlock();
-  ledger.delete("my-label", key);
+  ledger.delete("users", key);
   ledger.commitBlock();
 }
 ```
 
-Typescript tests: there are tests that run with npm (node.js) and tests that require a browser.
+## API Reference
 
-The first class of tests can be ran with
+### Rust API
+
+- `LedgerMap::new()` - Create a new ledger map with default settings
+- `LedgerMap::new_with_path(labels: Option<&[&str]>, path: Option<PathBuf>)` - Create with custom settings
+- `upsert(label: &str, key: Vec<u8>, value: Vec<u8>)` - Store or update a value
+- `get(label: &str, key: &[u8]) -> Option<&Vec<u8>>` - Retrieve a value
+- `delete(label: &str, key: Vec<u8>)` - Delete a value
+- `commit_block()` - Commit pending changes
+- `iter(label: Option<&str>)` - Iterate over entries
+
+### TypeScript API
+
+- `initialize(labels?: string[])` - Initialize the ledger
+- `upsert(label: string, key: Uint8Array, value: Uint8Array)` - Store or update a value
+- `get(label: string, key: Uint8Array)` - Retrieve a value
+- `delete(label: string, key: Uint8Array)` - Delete a value
+- `beginBlock()` - Start a new block of operations
+- `commitBlock()` - Commit the current block
+- `getBlocksCount()` - Get total number of blocks
+- `getLatestBlockHash()` - Get latest block hash
+- `refreshLedger()` - Reload from storage
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to:
+
+- Set up the development environment
+- Run tests
+- Submit pull requests
+- Follow our coding standards
+
+## Testing
+
+### Rust Tests
 
 ```bash
+cargo test
+cargo test --features browser
+cargo test --features ic
+```
+
+### TypeScript Tests
+
+```bash
+# Node.js tests
 npm run test
-```
 
-The second class of tests have to be run with
-
-```bash
+# Browser tests
 RUSTFLAGS='--cfg getrandom_backend="wasm_js"' wasm-pack test --chrome --features browser
-```
-
-## API
-
-### `LedgerMapWrapper`
-
-Main class for interacting with the ledger.
-
-#### Methods
-
-- `async initialize(labels?: string[]): Promise<void>`
-  Initialize the ledger. Optionally specify labels to index.
-
-- `upsert(label: string, key: Uint8Array, value: Uint8Array): void`
-  Store or update a value.
-
-- `get(label: string, key: Uint8Array): Uint8Array`
-  Retrieve a value.
-
-- `delete(label: string, key: Uint8Array): void`
-  Delete a value.
-
-- `beginBlock(): void`
-  Start a new block of operations.
-
-- `commitBlock(): void`
-  Commit the current block of operations.
-
-- `getBlocksCount(): number`
-  Get the total number of blocks.
-
-- `getLatestBlockHash(): Uint8Array`
-  Get the hash of the latest block.
-
-- `refreshLedger(): void`
-  Reload the ledger from storage.
-
-## Development
-
-### Building
-
-```bash
-npm run build
-```
-
-### Testing
-
-```bash
-npm test
 ```
 
 ## License
 
-Licensed under either of
+Licensed under either of:
 
-- Apache License, Version 2.0
-  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license
-  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
-
-## Contribution
-
-Contributions are welcome.
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.

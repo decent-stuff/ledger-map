@@ -1,6 +1,6 @@
 {
-  "name": "ledger-map-wasm",
-  "version": "0.4.0",
+  "name": "@decent-stuff/ledger-map",
+  "version": "0.4.2",
   "description": "WebAssembly build of ledger-map for browser usage",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
