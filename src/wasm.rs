@@ -8,14 +8,14 @@ pub struct WasmLedgerMap {
 }
 
 #[wasm_bindgen]
-pub struct WasmLedgerBlock {
+pub struct WasmLedgerMapBlock {
     entries: Vec<LedgerEntry>,
     timestamp: u64,
     parent_hash: Vec<u8>,
 }
 
 #[wasm_bindgen]
-pub struct WasmLedgerEntry {
+pub struct WasmLedgerMapEntry {
     label: String,
     key: Vec<u8>,
     value: Vec<u8>,
@@ -23,12 +23,12 @@ pub struct WasmLedgerEntry {
 }
 
 #[wasm_bindgen]
-impl WasmLedgerBlock {
+impl WasmLedgerMapBlock {
     #[wasm_bindgen(getter)]
     pub fn entries(&self) -> Array {
         let arr = Array::new();
         for entry in &self.entries {
-            let wasm_entry = WasmLedgerEntry {
+            let wasm_entry = WasmLedgerMapEntry {
                 label: entry.label().to_string(),
                 key: entry.key().to_vec(),
                 value: entry.value().to_vec(),
@@ -51,7 +51,7 @@ impl WasmLedgerBlock {
 }
 
 #[wasm_bindgen]
-impl WasmLedgerEntry {
+impl WasmLedgerMapEntry {
     #[wasm_bindgen(getter)]
     pub fn label(&self) -> String {
         self.label.clone()
@@ -131,7 +131,7 @@ impl WasmLedgerMap {
         let arr = Array::new();
         for entry in entries {
             info!("entry: {:#?}", entry);
-            let wasm_entry = WasmLedgerEntry {
+            let wasm_entry = WasmLedgerMapEntry {
                 label: entry.label().to_string(),
                 key: entry.key().to_vec(),
                 value: entry.value().to_vec(),
@@ -146,7 +146,7 @@ impl WasmLedgerMap {
         let entries: Vec<_> = self.inner.next_block_iter(label.as_deref()).collect();
         let arr = Array::new();
         for entry in entries {
-            let wasm_entry = WasmLedgerEntry {
+            let wasm_entry = WasmLedgerMapEntry {
                 label: entry.label().to_string(),
                 key: entry.key().to_vec(),
                 value: entry.value().to_vec(),

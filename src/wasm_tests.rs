@@ -146,7 +146,7 @@ fn test_wasm_block_entries() {
     // Verify entry contents
     let entry = label2_entries.get(0).dyn_into::<JsValue>().unwrap();
 
-    // Verify we can access WasmLedgerEntry properties
+    // Verify we can access WasmLedgerMapEntry properties
     let entry_obj = js_sys::Object::from(entry);
     assert!(js_sys::Reflect::has(&entry_obj, &"label".into()).unwrap());
     assert!(js_sys::Reflect::has(&entry_obj, &"key".into()).unwrap());

@@ -49,10 +49,10 @@ npm install @decent-stuff/ledger-map
 ```
 
 ```typescript
-import { LedgerMapWrapper } from "@decent-stuff/ledger-map";
+import { WasmLedgerMap } from "@decent-stuff/ledger-map";
 
 // Initialize
-const ledger = new LedgerMapWrapper();
+const ledger = new WasmLedgerMap();
 await ledger.initialize();
 
 // Store data
@@ -137,11 +137,11 @@ fn main() {
 ### TypeScript API
 
 ```typescript
-import { LedgerMapWrapper } from "@decent-stuff/ledger-map";
+import { WasmLedgerMap } from "@decent-stuff/ledger-map";
 
 async function example() {
   // Initialize
-  const ledger = new LedgerMapWrapper();
+  const ledger = new WasmLedgerMap();
   await ledger.initialize(["users", "posts"]); // Pre-index labels
 
   // Store data

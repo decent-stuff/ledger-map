@@ -31,13 +31,13 @@ fs.writeFileSync(
 );
 
 // Create a simple test file
-const testContent = `import { LedgerMapWrapper } from '../src/js';
+const testContent = `import { WasmLedgerMap } from '../src/js';
 
 describe('LedgerMap', () => {
     let ledgerMap;
 
     beforeEach(async () => {
-        ledgerMap = new LedgerMapWrapper();
+        ledgerMap = new WasmLedgerMap();
         await ledgerMap.initialize();
     });
 
