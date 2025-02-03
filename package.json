@@ -29,6 +29,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "dependencies": {
+    "@dfinity/agent": "^2.2.0",
+    "@dfinity/auth-client": "^2.2.0",
+    "@dfinity/candid": "^2.2.0",
+    "@dfinity/identity": "^2.2.0",
+    "@dfinity/principal": "^2.2.0"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "jest": "^29.5.0",

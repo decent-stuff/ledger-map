@@ -130,7 +130,6 @@ impl WasmLedgerMap {
         let entries: Vec<_> = self.inner.iter(label.as_deref()).collect();
         let arr = Array::new();
         for entry in entries {
-            info!("entry: {:#?}", entry);
             let wasm_entry = WasmLedgerMapEntry {
                 label: entry.label().to_string(),
                 key: entry.key().to_vec(),
@@ -160,8 +159,34 @@ impl WasmLedgerMap {
     pub fn get_next_block_entries_count(&self, label: Option<String>) -> usize {
         self.inner.get_next_block_entries_count(label.as_deref())
     }
+
+    pub fn get_next_block_start_pos(&self) -> u64 {
+        self.inner.get_next_block_start_pos()
+    }
+
+    pub fn get_data_partition_start(&self) -> u64 {
+        crate::partition_table::get_data_partition().start_lba
+    }
+
+    pub fn get_persistent_storage_size(&self) -> u64 {
+        crate::platform_specific::persistent_storage_size_bytes()
+    }
+
+    pub fn read_persistent_storage(&self, offset: u64, buffer: &mut [u8]) -> Result<(), JsValue> {
+        crate::platform_specific::persistent_storage_read(offset, buffer)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    pub fn write_persistent_storage(&mut self, offset: u64, data: &[u8]) -> Result<(), JsValue> {
+        crate::platform_specific::persistent_storage_write(offset, data);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 #[path = "wasm_tests.rs"]
 mod wasm_tests;
+
+#[cfg(test)]
+#[path = "wasm_data_fetch_tests.rs"]
+mod wasm_data_fetch_tests;

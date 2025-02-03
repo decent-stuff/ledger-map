@@ -1,7 +1,9 @@
 import init, { WasmLedgerMap } from '../../dist/wasm';
+import { createLedgerCanister, LedgerCursor, cursorFromData } from './canister';
 
 export interface LedgerMapOptions {
     labels?: string[];
+    canisterId?: string;
 }
 
 export class LedgerMap {
@@ -92,6 +94,71 @@ export class LedgerMap {
             throw new Error('LedgerMap not initialized. Call initialize() first.');
         }
         this.instance.refresh();
+    }
+
+    /**
+     * Fetch data from the ledger canister
+     * @returns Promise that resolves when the data has been fetched and processed
+     */
+    async fetchFromCanister(): Promise<void> {
+        if (!this.instance) {
+            throw new Error('LedgerMap not initialized. Call initialize() first.');
+        }
+
+        const canister = await createLedgerCanister();
+
+        // Get the current position in the local ledger
+        const nextBlockStartPos = this.instance.get_next_block_start_pos();
+        const dataPartitionStart = this.instance.get_data_partition_start();
+        const storageSize = this.instance.get_persistent_storage_size();
+
+        // Create a cursor for the current position
+        const cursor = cursorFromData(
+            BigInt(dataPartitionStart),
+            BigInt(storageSize),
+            BigInt(nextBlockStartPos),
+            BigInt(nextBlockStartPos)
+        );
+
+        // Get some bytes before the current position for verification
+        let bytesBefore: Uint8Array | undefined;
+        const BYTES_BEFORE_LEN = 1024; // 1KB of data before
+        if (cursor.position > BigInt(BYTES_BEFORE_LEN)) {
+            bytesBefore = new Uint8Array(BYTES_BEFORE_LEN);
+            // Read bytes before the current position
+            const beforePos = cursor.position - BigInt(BYTES_BEFORE_LEN);
+            this.instance.read_persistent_storage(beforePos, bytesBefore);
+        }
+
+        // Fetch data from the canister
+        const result = await canister.data_fetch(
+            cursor.toRequestString(),
+            bytesBefore
+        );
+
+        if (result.Err) {
+            throw new Error(`Failed to fetch data: ${result.Err}`);
+        }
+
+        if (!result.Ok) {
+            throw new Error('No data received from canister');
+        }
+
+        const [cursorStr, data] = result.Ok;
+        const remoteCursor = LedgerCursor.fromString(cursorStr);
+
+        // Verify the remote cursor position is not behind our local position
+        if (remoteCursor.position < cursor.position) {
+            throw new Error(
+                `Ledger canister has less data than available locally ${remoteCursor.position} < ${cursor.position} bytes`
+            );
+        }
+
+        // Write the new data to persistent storage
+        if (data.length > 0) {
+            this.instance.write_persistent_storage(remoteCursor.position, data);
+            this.refreshLedger();
+        }
     }
 }
 

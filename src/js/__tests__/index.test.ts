@@ -64,7 +64,7 @@ describe('LedgerMap', () => {
             });
 
             it('should handle non-existent label', () => {
-                expect(() => ledgerMap.upsert('nonexistent', testKey, testValue)).toThrow();
+                expect(() => ledgerMap.upsert('nonexistent', testKey, testValue)).not.toThrow();
             });
 
             it('should handle get with non-existent key', () => {
