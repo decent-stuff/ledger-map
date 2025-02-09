@@ -31,7 +31,7 @@ indexmap = { version = "2.7.1", features = ["std"] }
 lazy_static = "1.5.0"
 serde = { version = "1.0.217", features = ["derive"] }
 sha2 = "0.10.8"
-tokio = { version = "1.32.0", default-features = false, features = [
+tokio = { version = "1.43", default-features = false, features = [
     "macros",
     "rt",
     "test-util",
@@ -43,7 +43,7 @@ fs-err = "3.1.0"
 log = "0.4.25"
 dirs = "6.0"
 env_logger = "0.11.6"
-tokio = { version = "1.32.0", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "0.2.100", optional = true }
@@ -76,7 +76,7 @@ ic = ["ic-cdk", "ic-cdk-timers", "ic-canister-log"]
 
 [dev-dependencies]
 tempfile = "3.16.0"
-tokio = { version = "1.32.0", default-features = false, features = [
+tokio = { version = "1.43", default-features = false, features = [
     "macros",
     "rt",
     "test-util",
