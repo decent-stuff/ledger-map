@@ -22,41 +22,50 @@
 //! Example usage:
 //!
 //! ```rust
-//! use ledger_map::{LedgerMap};
+//! use ledger_map::LedgerMap;
 //! use env_logger::Env;
 //!
-//! // Set log level to info by default
-//! env_logger::try_init_from_env(Env::default().default_filter_or("info")).unwrap();
+//! // We hide the async main in doc tests so the snippet compiles as an async test.
+//! #[tokio::main]
+//! async fn main() {
+//!     // Set log level to info by default
+//!     env_logger::try_init_from_env(Env::default().default_filter_or("info")).unwrap();
 //!
-//! // Optional: Use custom file path for the persistent storage
-//! let ledger_path = None;
-//! // let ledger_path = Some(std::path::PathBuf::from("/tmp/ledger_map/test_data.bin"));
+//!     // Optional: Use custom file path for the persistent storage
+//!     let ledger_path = None;
+//!     // let ledger_path = Some(std::path::PathBuf::from("/tmp/ledger_map/test_data.bin"));
 //!
-//! // Create a new LedgerMap instance
-//! let mut ledger_map = LedgerMap::new_with_path(None, ledger_path).expect("Failed to create LedgerMap");
+//!     // Create a new LedgerMap instance
+//!     let mut ledger_map = LedgerMap::new_with_path(None, ledger_path)
+//!         .await
+//!         .expect("Failed to create LedgerMap");
 //!
-//! // Insert a few new entries, each with a separate label
-//! ledger_map.upsert("Label1", b"key1".to_vec(), b"value1".to_vec()).unwrap();
-//! ledger_map.upsert("Label2", b"key2".to_vec(), b"value2".to_vec()).unwrap();
-//! ledger_map.commit_block().unwrap();
+//!     // Insert a few new entries, each with a separate label
+//!     ledger_map.upsert("Label1", b"key1".to_vec(), b"value1".to_vec()).unwrap();
+//!     ledger_map.upsert("Label2", b"key2".to_vec(), b"value2".to_vec()).unwrap();
+//!     ledger_map.commit_block().await.unwrap();
 //!
-//! // Retrieve all entries
-//! let entries = ledger_map.iter(None).collect::<Vec<_>>();
-//! println!("All entries: {:?}", entries);
-//! // Only entries with the Label1 label
-//! let entries = ledger_map.iter(Some("Label1")).collect::<Vec<_>>();
-//! println!("Label1 entries: {:?}", entries);
-//! // Only entries with the Label2 label
-//! let entries = ledger_map.iter(Some("Label2")).collect::<Vec<_>>();
-//! println!("Label2 entries: {:?}", entries);
+//!     // Retrieve all entries
+//!     let entries = ledger_map.iter(None).collect::<Vec<_>>();
+//!     println!("All entries: {:?}", entries);
 //!
-//! // Delete an entry
-//! ledger_map.delete("Label1", b"key1".to_vec()).unwrap();
-//! ledger_map.commit_block().unwrap();
-//! // Label1 entries are now empty
-//! assert_eq!(ledger_map.iter(Some("Label1")).count(), 0);
-//! // Label2 entries still exist
-//! assert_eq!(ledger_map.iter(Some("Label2")).count(), 1);
+//!     // Only entries with the Label1 label
+//!     let entries = ledger_map.iter(Some("Label1")).collect::<Vec<_>>();
+//!     println!("Label1 entries: {:?}", entries);
+//!
+//!     // Only entries with the Label2 label
+//!     let entries = ledger_map.iter(Some("Label2")).collect::<Vec<_>>();
+//!     println!("Label2 entries: {:?}", entries);
+//!
+//!     // Delete an entry
+//!     ledger_map.delete("Label1", b"key1".to_vec()).unwrap();
+//!     ledger_map.commit_block().await.unwrap();
+//!
+//!     // Label1 entries are now empty
+//!     assert_eq!(ledger_map.iter(Some("Label1")).count(), 0);
+//!     // Label2 entries still exist
+//!     assert_eq!(ledger_map.iter(Some("Label2")).count(), 1);
+//! }
 //! ```
 
 #[cfg(all(target_arch = "wasm32", feature = "ic"))]

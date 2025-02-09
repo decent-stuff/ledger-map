@@ -9,51 +9,57 @@ use wasm_bindgen_test::*;
 wasm_bindgen_test_configure!(run_in_browser);
 
 // Helper function to create a test ledger with some data
-fn create_test_ledger() -> WasmLedgerMap {
+async fn create_test_ledger() -> WasmLedgerMap {
     clear_storage();
-    init_storage();
-    let mut ledger = WasmLedgerMap::new(None).expect("Failed to create WasmLedgerMap");
+    init_storage().await;
+    let mut ledger = WasmLedgerMap::new(None)
+        .await
+        .expect("Failed to create WasmLedgerMap");
 
     // Add some test entries
     ledger.upsert("label1", b"key1", b"value1").unwrap();
     ledger.upsert("label2", b"key2", b"value2").unwrap();
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     ledger.upsert("label1", b"key3", b"value3").unwrap();
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     ledger
 }
 
 #[wasm_bindgen_test]
-fn test_basic_operations() {
+async fn test_basic_operations() {
     clear_storage();
-    init_storage();
-    let mut ledger = WasmLedgerMap::new(None).expect("Failed to create WasmLedgerMap");
+    init_storage().await;
+    let mut ledger = WasmLedgerMap::new(None)
+        .await
+        .expect("Failed to create WasmLedgerMap");
 
     // Test upsert and get
     let key = b"test_key".to_vec();
     let value = b"test_value".to_vec();
     ledger.upsert("test_label", &key, &value).unwrap();
 
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     let retrieved = ledger.get("test_label", &key).unwrap();
     assert_eq!(retrieved, value);
 
     // Test delete
     ledger.delete("test_label", &key).unwrap();
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     let get_result = ledger.get("test_label", &key);
     assert!(get_result.is_err());
 }
 
 #[wasm_bindgen_test]
-fn test_multiple_labels() {
+async fn test_multiple_labels() {
     clear_storage();
-    init_storage();
-    let mut ledger = WasmLedgerMap::new(None).expect("Failed to create WasmLedgerMap");
+    init_storage().await;
+    let mut ledger = WasmLedgerMap::new(None)
+        .await
+        .expect("Failed to create WasmLedgerMap");
 
     let key1 = b"key1".to_vec();
     let value1 = b"value1".to_vec();
@@ -63,7 +69,7 @@ fn test_multiple_labels() {
     ledger.upsert("label1", &key1, &value1).unwrap();
     ledger.upsert("label2", &key2, &value2).unwrap();
 
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     let get1 = ledger.get("label1", &key1);
     assert_eq!(get1.unwrap(), value1);
@@ -73,10 +79,12 @@ fn test_multiple_labels() {
 }
 
 #[wasm_bindgen_test]
-fn test_block_operations() {
+async fn test_block_operations() {
     clear_storage();
-    init_storage();
-    let mut ledger = WasmLedgerMap::new(None).expect("Failed to create WasmLedgerMap");
+    init_storage().await;
+    let mut ledger = WasmLedgerMap::new(None)
+        .await
+        .expect("Failed to create WasmLedgerMap");
 
     let key = b"block_test_key".to_vec();
     let value1 = b"value1".to_vec();
@@ -84,7 +92,7 @@ fn test_block_operations() {
 
     // First block
     ledger.upsert("test", &key, &value1).unwrap();
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     let blocks_count = ledger.get_blocks_count();
     assert_eq!(blocks_count, 1);
@@ -94,7 +102,7 @@ fn test_block_operations() {
 
     // Second block
     ledger.upsert("test", &key, &value2).unwrap();
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     let blocks_count = ledger.get_blocks_count();
     assert_eq!(blocks_count, 2);
@@ -108,19 +116,21 @@ fn test_block_operations() {
 }
 
 #[wasm_bindgen_test]
-fn test_persistence() {
+async fn test_persistence() {
     clear_storage();
-    init_storage();
-    let mut ledger = WasmLedgerMap::new(None).expect("Failed to create WasmLedgerMap");
+    init_storage().await;
+    let mut ledger = WasmLedgerMap::new(None)
+        .await
+        .expect("Failed to create WasmLedgerMap");
 
     let key = b"persist_key".to_vec();
     let value = b"persist_value".to_vec();
 
     ledger.upsert("test", &key, &value).unwrap();
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
 
     // Refresh ledger (simulates reload)
-    ledger.refresh().unwrap();
+    ledger.refresh().await.unwrap();
 
     // Verify data persisted
     let get_result = ledger.get("test", &key);
@@ -128,8 +138,8 @@ fn test_persistence() {
 }
 
 #[wasm_bindgen_test]
-fn test_wasm_block_entries() {
-    let ledger = create_test_ledger();
+async fn test_wasm_block_entries() {
+    let ledger = create_test_ledger().await;
 
     // Test getting all entries
     let entries = ledger.get_block_entries(None);
@@ -155,8 +165,8 @@ fn test_wasm_block_entries() {
 }
 
 #[wasm_bindgen_test]
-fn test_wasm_next_block_entries() {
-    let mut ledger = create_test_ledger();
+async fn test_wasm_next_block_entries() {
+    let mut ledger = create_test_ledger().await;
 
     // Add entries to next block
     ledger.upsert("label3", b"key4", b"value4").unwrap();
@@ -174,13 +184,13 @@ fn test_wasm_next_block_entries() {
     assert_eq!(next_entries.length(), 2);
 
     // Verify entries are cleared after commit
-    ledger.commit_block().unwrap();
+    ledger.commit_block().await.unwrap();
     assert_eq!(ledger.get_next_block_entries_count(None), 0);
 }
 
 #[wasm_bindgen_test]
-fn test_wasm_block_metadata() {
-    let ledger = create_test_ledger();
+async fn test_wasm_block_metadata() {
+    let ledger = create_test_ledger().await;
 
     // Test block count
     assert_eq!(ledger.get_blocks_count(), 2);
@@ -204,28 +214,28 @@ mod storage_tests {
     };
 
     #[wasm_bindgen_test]
-    fn test_basic_read_write() {
+    async fn test_basic_read_write() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
         let data = b"Hello, World!";
-        persistent_storage_write(0, data);
+        persistent_storage_write(0, data).await;
 
         let mut buf = vec![0; data.len()];
-        persistent_storage_read(0, &mut buf).unwrap();
+        persistent_storage_read(0, &mut buf).await.unwrap();
         assert_eq!(&buf, data);
 
         // Verify size
         assert_eq!(
-            persistent_storage_size_bytes(),
+            persistent_storage_size_bytes().await,
             PERSISTENT_STORAGE_PAGE_SIZE
         );
     }
 
     #[wasm_bindgen_test]
-    fn test_cross_chunk_read_write() {
+    async fn test_cross_chunk_read_write() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
         // Create test data that spans multiple chunks / pages
         let chunk_size = PERSISTENT_STORAGE_PAGE_SIZE; // 1MB
@@ -233,11 +243,11 @@ mod storage_tests {
         let data: Vec<u8> = (0..data_size).map(|i| (i % 256) as u8).collect();
 
         // Write the data
-        persistent_storage_write(0, &data);
+        persistent_storage_write(0, &data).await;
 
         // Verify total size
         assert_eq!(
-            persistent_storage_size_bytes(),
+            persistent_storage_size_bytes().await,
             3 * PERSISTENT_STORAGE_PAGE_SIZE
         );
 
@@ -255,7 +265,7 @@ mod storage_tests {
 
         for (offset, size) in test_cases {
             let mut buf = vec![0; size];
-            persistent_storage_read(offset, &mut buf).unwrap();
+            persistent_storage_read(offset, &mut buf).await.unwrap();
 
             // Calculate expected data for this range
             let start = offset as usize;
@@ -271,118 +281,126 @@ mod storage_tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_offset_alignment_edge_cases() {
+    async fn test_offset_alignment_edge_cases() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
         let chunk_size = 1024 * 1024;
 
         // Write at chunk boundary
         let data1 = b"boundary";
-        persistent_storage_write(chunk_size, data1);
+        persistent_storage_write(chunk_size, data1).await;
 
         // Write just before chunk boundary
         let data2 = b"before_boundary";
-        persistent_storage_write(chunk_size - 5, data2);
+        persistent_storage_write(chunk_size - 5, data2).await;
 
         // Write spanning chunk boundary
         let data3 = b"spanning_boundary";
-        persistent_storage_write(chunk_size - 5, data3);
+        persistent_storage_write(chunk_size - 5, data3).await;
 
         // Verify all writes
         let mut buf = vec![0; 20];
-        persistent_storage_read(chunk_size - 5, &mut buf).unwrap();
+        persistent_storage_read(chunk_size - 5, &mut buf)
+            .await
+            .unwrap();
         assert_eq!(&buf[..data3.len()], data3);
     }
 
     #[wasm_bindgen_test]
-    fn test_zero_length_operations() {
+    async fn test_zero_length_operations() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
         // Write empty data
         let empty: &[u8] = &[];
-        persistent_storage_write(1000, empty);
+        persistent_storage_write(1000, empty).await;
 
         // Read zero bytes
         let mut buf = Vec::new();
-        persistent_storage_read(1000, &mut buf).unwrap();
+        persistent_storage_read(1000, &mut buf).await.unwrap();
         assert_eq!(buf.len(), 0);
     }
 
     #[wasm_bindgen_test]
-    fn test_read_beyond_data() {
+    async fn test_read_beyond_data() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
         let data = b"test data";
-        persistent_storage_write(0, data);
+        persistent_storage_write(0, data).await;
 
         // Read beyond written data
         let mut buf = vec![0; 10];
-        persistent_storage_read(data.len() as u64 + 100, &mut buf).unwrap();
+        persistent_storage_read(data.len() as u64 + 100, &mut buf)
+            .await
+            .unwrap();
         assert_eq!(&buf, &vec![0; 10]);
 
         // Read partially beyond data
         let mut buf2 = vec![0; 20];
-        persistent_storage_read(5, &mut buf2).unwrap();
+        persistent_storage_read(5, &mut buf2).await.unwrap();
         assert_eq!(&buf2[..4], &data[5..]);
         assert_eq!(&buf2[4..], &vec![0; 16]);
     }
 
     #[wasm_bindgen_test]
-    fn test_large_sparse_writes() {
+    async fn test_large_sparse_writes() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
         let chunk_size = 1024 * 1024;
 
         // Write at the start
         let data1 = b"start";
-        persistent_storage_write(0, data1);
+        persistent_storage_write(0, data1).await;
 
         // Write at end of first chunk
         let data2 = b"end_chunk1";
-        persistent_storage_write(chunk_size - data2.len() as u64, data2);
+        persistent_storage_write(chunk_size - data2.len() as u64, data2).await;
 
         // Write at start of second chunk
         let data3 = b"start_chunk2";
-        persistent_storage_write(chunk_size, data3);
+        persistent_storage_write(chunk_size, data3).await;
 
         // Verify all writes
         let mut buf1 = vec![0; data1.len()];
-        persistent_storage_read(0, &mut buf1).unwrap();
+        persistent_storage_read(0, &mut buf1).await.unwrap();
         assert_eq!(&buf1, data1);
 
         let mut buf2 = vec![0; data2.len()];
-        persistent_storage_read(chunk_size - data2.len() as u64, &mut buf2).unwrap();
+        persistent_storage_read(chunk_size - data2.len() as u64, &mut buf2)
+            .await
+            .unwrap();
         assert_eq!(&buf2, data2);
 
         let mut buf3 = vec![0; data3.len()];
-        persistent_storage_read(chunk_size, &mut buf3).unwrap();
+        persistent_storage_read(chunk_size, &mut buf3)
+            .await
+            .unwrap();
         assert_eq!(&buf3, data3);
     }
 
     #[wasm_bindgen_test]
-    fn test_size_calculation() {
+    async fn test_size_calculation() {
         clear_storage();
-        init_storage();
+        init_storage().await;
 
-        assert_eq!(persistent_storage_size_bytes(), 0);
+        assert_eq!(persistent_storage_size_bytes().await, 0);
 
         // Write some data
         let data = b"test data";
-        persistent_storage_write(0, data);
+        persistent_storage_write(0, data).await;
         assert_eq!(
-            persistent_storage_size_bytes(),
+            persistent_storage_size_bytes().await,
             PERSISTENT_STORAGE_PAGE_SIZE
         );
 
         // Write at a higher offset
         let offset = 1024 * 1024; // 1MB
-        persistent_storage_write(offset, data);
+        persistent_storage_write(offset, data).await;
         assert_eq!(
-            persistent_storage_size_bytes(),
+            persistent_storage_size_bytes().await,
             2 * PERSISTENT_STORAGE_PAGE_SIZE
         );
     }

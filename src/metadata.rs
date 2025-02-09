@@ -24,9 +24,13 @@ pub enum Metadata {
     V1(MetadataV1),
 }
 
-impl Default for Metadata {
-    fn default() -> Self {
-        let next_block_start_pos = partition_table::get_data_partition().start_lba;
+impl Metadata {
+    pub async fn new() -> Self {
+        Self::default().await
+    }
+
+    async fn default() -> Self {
+        let next_block_start_pos = partition_table::get_data_partition().await.start_lba;
         debug!("next_block_start_pos: 0x{:0x}", next_block_start_pos);
         Metadata::V1(MetadataV1 {
             num_blocks: 0,
@@ -37,15 +41,9 @@ impl Default for Metadata {
             next_block_start_pos,
         })
     }
-}
 
-impl Metadata {
-    pub fn new() -> Self {
-        Metadata::default()
-    }
-
-    pub fn clear(&mut self) {
-        *self = Metadata::default();
+    pub async fn clear(&mut self) {
+        *self = Self::default().await;
     }
 
     pub fn num_blocks(&self) -> usize {

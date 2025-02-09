@@ -59,28 +59,29 @@ pub fn export_error() -> Vec<LogEntry> {
 
 pub const PERSISTENT_STORAGE_PAGE_SIZE: u64 = 64 * 1024;
 
-pub fn persistent_storage_size_bytes() -> u64 {
+pub async fn persistent_storage_size_bytes() -> u64 {
     ic_cdk::api::stable::stable_size() * PERSISTENT_STORAGE_PAGE_SIZE
 }
 
-pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
+pub async fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
     ic_cdk::api::stable::stable_read(offset, buf);
     Ok(())
 }
 
-pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
-    let stable_memory_size_bytes = persistent_storage_size_bytes();
+pub async fn persistent_storage_write(offset: u64, buf: &[u8]) {
+    let stable_memory_size_bytes = persistent_storage_size_bytes().await;
     if stable_memory_size_bytes < offset + buf.len() as u64 {
         let stable_memory_bytes_new = offset + (buf.len() as u64).max(PERSISTENT_STORAGE_PAGE_SIZE);
         persistent_storage_grow(
             (stable_memory_bytes_new - stable_memory_size_bytes) / PERSISTENT_STORAGE_PAGE_SIZE + 1,
         )
+        .await
         .unwrap();
     }
     ic_cdk::api::stable::stable_write(offset, buf)
 }
 
-pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
+pub async fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
     info!(
         "persistent_storage_grow: {} additional_pages.",
         additional_pages

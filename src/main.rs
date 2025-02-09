@@ -5,10 +5,11 @@
 #[cfg(not(target_arch = "wasm32"))]
 use clap::{arg, Arg, Command};
 use ledger_map::LedgerMap;
-use std::path::PathBuf;
+#[cfg(not(target_arch = "wasm32"))]
 use std::str::FromStr;
 use std::sync::Once;
 
+#[allow(dead_code)]
 /// Struct to hold the parsed command-line arguments
 struct ParsedArgs {
     list: bool,
@@ -54,16 +55,6 @@ fn parse_args() -> ParsedArgs {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-fn parse_args() -> ParsedArgs {
-    ParsedArgs {
-        list: false,
-        upsert: None,
-        delete: None,
-        path: None,
-    }
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 fn logs_init() {
     // Set log level to info by default
@@ -84,17 +75,28 @@ pub fn initialize() {
     });
 }
 
-fn main() -> anyhow::Result<()> {
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    let _lm = LedgerMap::new(None);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     logs_init();
 
     // Parse the command-line arguments
     let args = parse_args();
 
     // Extract the file path from the parsed arguments
-    let ledger_path = args.path.as_ref().map(|p| PathBuf::from_str(p).unwrap());
+    let ledger_path = args
+        .path
+        .as_ref()
+        .map(|p| std::path::PathBuf::from_str(p).unwrap());
 
-    let mut ledger_map =
-        LedgerMap::new_with_path(None, ledger_path).expect("Failed to create ledger");
+    let mut ledger_map = LedgerMap::new_with_path(None, ledger_path)
+        .await
+        .expect("Failed to create ledger");
 
     if args.list {
         println!("Listing entries:");
@@ -108,7 +110,7 @@ fn main() -> anyhow::Result<()> {
         // Upsert (insert/update) an entry in the ledger
         ledger_map.upsert("Unspecified", key.as_bytes(), value.as_bytes())?;
         println!("Upsert entry with KEY: {}, VALUE: {}", key, value);
-        ledger_map.commit_block()?;
+        ledger_map.commit_block().await?;
     }
 
     if let Some(key) = args.delete {

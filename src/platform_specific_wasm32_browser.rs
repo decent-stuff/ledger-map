@@ -73,7 +73,7 @@ fn is_storage_initialized() -> bool {
 }
 
 #[wasm_bindgen(start)]
-pub fn init_storage() {
+pub async fn init_storage() {
     if is_storage_initialized() {
         return;
     }
@@ -134,12 +134,12 @@ fn decode_bytes(data: &str) -> Vec<u8> {
     BASE64.decode(data).unwrap_or_default()
 }
 
-pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
+pub async fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
     if buf.is_empty() {
         return Ok(());
     }
 
-    let storage_size = persistent_storage_size_bytes();
+    let storage_size = persistent_storage_size_bytes().await;
     if offset >= storage_size {
         // Fill buffer with zeros if reading beyond storage size
         buf.fill(0);
@@ -200,14 +200,15 @@ pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String
     })
 }
 
-pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
-    init_storage();
-    let size_bytes_prev = persistent_storage_size_bytes();
+pub async fn persistent_storage_write(offset: u64, buf: &[u8]) {
+    init_storage().await;
+    let size_bytes_prev = persistent_storage_size_bytes().await;
     let size_bytes_expected = offset + buf.len() as u64;
     if size_bytes_expected > size_bytes_prev {
         persistent_storage_grow(
             (size_bytes_expected - size_bytes_prev) / PERSISTENT_STORAGE_PAGE_SIZE + 1,
         )
+        .await
         .unwrap();
     }
     LOCAL_STORAGE.with(|storage| {
@@ -255,14 +256,14 @@ pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
 }
 
 /// LedgerMap first calls this function to determine the size of the persistent storage
-pub fn persistent_storage_size_bytes() -> u64 {
-    init_storage();
+pub async fn persistent_storage_size_bytes() -> u64 {
+    init_storage().await;
     num_pages_allocated_get() * PERSISTENT_STORAGE_PAGE_SIZE
 }
 
 /// Grows the persistent storage by the specified number of pages
 /// Returns the *previous* number of pages
-pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
+pub async fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
     let num_pages_prev = num_pages_allocated_get();
     LOCAL_STORAGE.with(|storage| {
         if let Some(storage) = &*storage.borrow() {

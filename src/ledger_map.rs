@@ -10,7 +10,12 @@ use crate::platform_specific::{
 use crate::{debug, info, warn};
 use crate::{platform_specific, AHashSet};
 use anyhow::Result;
+use async_stream::try_stream;
 use borsh::to_vec;
+use futures::{
+    pin_mut,
+    stream::{Stream, TryStreamExt},
+};
 use indexmap::IndexMap;
 use sha2::Digest;
 use std::cell::RefCell;
@@ -28,33 +33,33 @@ impl LedgerMap {
     /// Create a new LedgerMap instance.
     /// If `labels_to_index` is `None`, then all labels will be indexed.
     /// Note that iterating over non-indexed labels will not be possible through .iter()
-    pub fn new(labels_to_index: Option<Vec<String>>) -> anyhow::Result<Self> {
+    pub async fn new(labels_to_index: Option<Vec<String>>) -> anyhow::Result<Self> {
         let mut result = LedgerMap {
-            metadata: RefCell::new(Metadata::new()),
+            metadata: RefCell::new(Metadata::new().await),
             labels_to_index: labels_to_index.map(AHashSet::from_iter),
             entries: IndexMap::new(),
             next_block_entries: IndexMap::new(),
             current_timestamp_nanos: platform_specific::get_timestamp_nanos,
         };
-        result.refresh_ledger()?;
+        result.refresh_ledger().await?;
         Ok(result)
     }
 
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    pub fn new_with_path(
+    pub async fn new_with_path(
         labels_to_index: Option<Vec<String>>,
         path: Option<std::path::PathBuf>,
     ) -> anyhow::Result<Self> {
         platform_specific::set_backing_file(path).map_err(|e| anyhow::format_err!("{:?}", e))?;
-        Self::new(labels_to_index)
+        Self::new(labels_to_index).await
     }
 
     #[cfg(all(target_arch = "wasm32", feature = "browser"))]
-    pub fn new_with_path(
+    pub async fn new_with_path(
         labels_to_index: Option<Vec<String>>,
         _path: Option<std::path::PathBuf>,
     ) -> anyhow::Result<Self> {
-        Self::new(labels_to_index)
+        Self::new(labels_to_index).await
     }
 
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -84,7 +89,7 @@ impl LedgerMap {
         Ok(())
     }
 
-    pub fn commit_block(&mut self) -> anyhow::Result<()> {
+    pub async fn commit_block(&mut self) -> anyhow::Result<()> {
         if self.next_block_entries.is_empty() {
             // debug!("Commit of empty block invoked, skipping");
         } else {
@@ -110,7 +115,7 @@ impl LedgerMap {
             let block_timestamp = (self.current_timestamp_nanos)();
             let parent_hash = self.metadata.borrow().get_last_block_chain_hash().to_vec();
             let block = LedgerBlock::new(block_entries, block_timestamp, parent_hash);
-            self._persist_block(block)?;
+            self._persist_block(block).await?;
             self.next_block_entries.clear();
         }
         Ok(())
@@ -162,19 +167,20 @@ impl LedgerMap {
         self._insert_entry_into_next_block(label, key, Vec::new(), Operation::Delete)
     }
 
-    pub fn refresh_ledger(&mut self) -> anyhow::Result<()> {
-        self.metadata.borrow_mut().clear();
+    pub async fn refresh_ledger(&mut self) -> anyhow::Result<()> {
+        let metadata = self.metadata.borrow_mut();
+        drop(metadata);
         self.entries.clear();
         self.next_block_entries.clear();
 
         // If the backend is empty or non-existing, just return
-        if persistent_storage_size_bytes() == 0 {
+        if persistent_storage_size_bytes().await == 0 {
             warn!("Persistent storage is empty");
             return Ok(());
         }
 
-        let data_part_entry = partition_table::get_data_partition();
-        if persistent_storage_size_bytes() < data_part_entry.start_lba {
+        let data_part_entry = partition_table::get_data_partition().await;
+        if persistent_storage_size_bytes().await < data_part_entry.start_lba {
             warn!("No data found in persistent storage");
             return Ok(());
         }
@@ -182,33 +188,41 @@ impl LedgerMap {
         let mut expected_parent_hash = Vec::new();
         let mut updates = Vec::new();
         // Step 1: Read all Ledger Blocks
-        for entry in self.iter_raw() {
-            let (block_header, ledger_block) = entry?;
+        {
+            let stream = self.iter_raw();
+            pin_mut!(stream);
 
-            if ledger_block.parent_hash() != expected_parent_hash {
-                return Err(anyhow::format_err!(
-                    "Hash mismatch: expected parent hash {:?}, got {:?}",
-                    expected_parent_hash,
-                    ledger_block.parent_hash()
-                ));
-            };
+            while let Ok(entry) = stream.try_next().await {
+                let (block_header, ledger_block) = match entry {
+                    Some(entry) => entry,
+                    None => break,
+                };
 
-            let new_chain_hash = Self::_compute_block_chain_hash(
-                ledger_block.parent_hash(),
-                ledger_block.entries(),
-                ledger_block.timestamp(),
-            )?;
+                if ledger_block.parent_hash() != expected_parent_hash {
+                    return Err(anyhow::format_err!(
+                        "Hash mismatch: expected parent hash {:?}, got {:?}",
+                        expected_parent_hash,
+                        ledger_block.parent_hash()
+                    ));
+                };
 
-            let next_block_start_pos = self.metadata.borrow().next_block_start_pos()
-                + block_header.jump_bytes_next_block() as u64;
-            self.metadata.borrow_mut().update_from_appended_block(
-                &new_chain_hash,
-                ledger_block.timestamp(),
-                next_block_start_pos,
-            );
-            expected_parent_hash = new_chain_hash;
+                let new_chain_hash = Self::_compute_block_chain_hash(
+                    ledger_block.parent_hash(),
+                    ledger_block.entries(),
+                    ledger_block.timestamp(),
+                )?;
 
-            updates.push(ledger_block);
+                let next_block_start_pos = self.metadata.borrow().next_block_start_pos()
+                    + block_header.jump_bytes_next_block() as u64;
+                self.metadata.borrow_mut().update_from_appended_block(
+                    &new_chain_hash,
+                    ledger_block.timestamp(),
+                    next_block_start_pos,
+                );
+                expected_parent_hash = new_chain_hash;
+
+                updates.push(ledger_block);
+            }
         }
 
         // Step 2: Add ledger entries into the index (self.entries) for quick search
@@ -291,30 +305,36 @@ impl LedgerMap {
         }
     }
 
-    pub fn iter_raw(
-        &self,
-    ) -> impl Iterator<Item = anyhow::Result<(LedgerBlockHeader, LedgerBlock)>> + '_ {
-        let data_start = partition_table::get_data_partition().start_lba;
-        (0..).scan(data_start, |state, _| {
-            let (block_header, ledger_block) = match self._persisted_block_read(*state) {
-                Ok(decoded) => decoded,
-                Err(LedgerError::BlockEmpty) => return None,
-                Err(LedgerError::BlockCorrupted(err)) => {
-                    return Some(Err(anyhow::format_err!(
-                        "Failed to read Ledger block: {}",
-                        err
-                    )))
+    pub fn iter_raw(&self) -> impl Stream<Item = Result<(LedgerBlockHeader, LedgerBlock)>> + '_ {
+        try_stream! {
+            let data_start = partition_table::get_data_partition().await.start_lba;
+            let mut current_lba = data_start;
+
+            loop {
+                match self._persisted_block_read(current_lba).await {
+                    Ok((block_header, ledger_block)) => {
+                        let jump_next = block_header.jump_bytes_next_block() as u64;
+                        // Yield the next item as a success
+                        yield (block_header, ledger_block);
+
+                        // Advance to the next block offset
+                        current_lba += jump_next;
+                    }
+                    Err(LedgerError::BlockEmpty) => {
+                        // End of stream
+                        break;
+                    }
+                    Err(LedgerError::BlockCorrupted(e)) => {
+                        // Cause the stream to fail with this error and stop
+                        Err(anyhow::anyhow!("Failed to read Ledger block: {}", e))?;
+                    }
+                    Err(e) => {
+                        // Also fail
+                        Err(anyhow::anyhow!("Failed to read Ledger block: {}", e))?;
+                    }
                 }
-                Err(err) => {
-                    return Some(Err(anyhow::format_err!(
-                        "Failed to read Ledger block: {}",
-                        err
-                    )))
-                }
-            };
-            *state += block_header.jump_bytes_next_block() as u64;
-            Some(Ok((block_header, ledger_block)))
-        })
+            }
+        }
     }
 
     pub fn get_blocks_count(&self) -> usize {
@@ -351,7 +371,7 @@ impl LedgerMap {
         Ok(hasher.finalize().to_vec())
     }
 
-    fn _persist_block(&self, ledger_block: LedgerBlock) -> anyhow::Result<()> {
+    async fn _persist_block(&self, ledger_block: LedgerBlock) -> anyhow::Result<()> {
         let block_serialized_data = ledger_block.serialize()?;
         info!(
             "Appending block @timestamp {} with {} bytes data: {}",
@@ -373,16 +393,13 @@ impl LedgerMap {
             LedgerBlockHeader::new(jump_bytes_prev_block, jump_bytes_next_block).serialize()?;
 
         // First persist block header
-        persistent_storage_write(
-            self.metadata.borrow().next_block_start_pos(),
-            &serialized_block_header,
-        );
+        let write_pos = self.metadata.borrow().next_block_start_pos();
+        persistent_storage_write(write_pos, &serialized_block_header).await;
 
         // Then persist block data
-        persistent_storage_write(
-            self.metadata.borrow().next_block_start_pos() + LedgerBlockHeader::sizeof() as u64,
-            &block_serialized_data,
-        );
+        let write_pos =
+            self.metadata.borrow().next_block_start_pos() + LedgerBlockHeader::sizeof() as u64;
+        persistent_storage_write(write_pos, &block_serialized_data).await;
 
         let new_chain_hash = Self::_compute_block_chain_hash(
             ledger_block.parent_hash(),
@@ -398,20 +415,20 @@ impl LedgerMap {
         );
 
         // Finally, persist 0u32 to mark the end of the block chain
-        persistent_storage_write(
-            self.metadata.borrow().next_block_start_pos() + jump_bytes_next_block as u64,
-            &[0u8; size_of::<u32>()],
-        );
+        let write_pos =
+            self.metadata.borrow().next_block_start_pos() + jump_bytes_next_block as u64;
+        persistent_storage_write(write_pos, &[0u8; size_of::<u32>()]).await;
         Ok(())
     }
 
-    fn _persisted_block_read(
+    async fn _persisted_block_read(
         &self,
         offset: u64,
     ) -> Result<(LedgerBlockHeader, LedgerBlock), LedgerError> {
         // Find out how many bytes we need to read ==> block len in bytes
         let mut buf = [0u8; size_of::<LedgerBlockHeader>()];
         persistent_storage_read(offset, &mut buf)
+            .await
             .map_err(|e| LedgerError::BlockCorrupted(e.to_string()))?;
 
         let block_header = LedgerBlockHeader::deserialize(buf.as_ref())?;
@@ -425,6 +442,7 @@ impl LedgerMap {
         // Read the block as raw bytes
         let mut buf = vec![0u8; block_len_bytes as usize];
         persistent_storage_read(offset + LedgerBlockHeader::sizeof() as u64, &mut buf)
+            .await
             .map_err(|e| LedgerError::Other(e.to_string()))?;
 
         let block = LedgerBlock::deserialize(buf.as_ref(), block_header.block_version())

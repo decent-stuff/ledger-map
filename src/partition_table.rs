@@ -157,20 +157,22 @@ impl PartitionTable {
         Self::size() as u64
     }
 
-    pub fn read_from_persistent_storage() -> Result<Self, String> {
-        Self::ensure_enough_persistent_storage_allocated()?;
+    pub async fn read_from_persistent_storage() -> Result<Self, String> {
+        Self::ensure_enough_persistent_storage_allocated().await?;
 
-        if persistent_storage_size_bytes() < Self::required_size_bytes() {
+        let size_bytes = persistent_storage_size_bytes().await;
+
+        if size_bytes < Self::required_size_bytes() {
             return Err("Not enough persistent storage allocated".to_string());
         }
 
         debug!(
             "Reading from persistent storage of size {} bytes",
-            persistent_storage_size_bytes()
+            size_bytes
         );
 
         let mut buf = vec![0; Self::size()];
-        persistent_storage_read(PARTITION_TABLE_START_OFFSET, &mut buf)?;
+        persistent_storage_read(PARTITION_TABLE_START_OFFSET, &mut buf).await?;
 
         let header = PartitionTableHeader::from_bytes(&buf[..PartitionTableHeader::size()])?;
         let mut entries = Vec::new();
@@ -197,11 +199,10 @@ impl PartitionTable {
         })
     }
 
-    pub fn persist(&self) -> Result<(), String> {
+    pub async fn persist(&self) -> Result<(), String> {
         if self.num_entries == 0 {
             return Err("Partition table is empty".to_string());
         }
-        Self::ensure_enough_persistent_storage_allocated()?;
 
         let mut buf = vec![0; Self::size()];
         buf[..PartitionTableHeader::size()].copy_from_slice(&self.header.magic_bytes);
@@ -210,7 +211,7 @@ impl PartitionTable {
             buf[offset..offset + PartitionTableEntry::size()].copy_from_slice(&entry.to_bytes());
         }
 
-        persistent_storage_write(PARTITION_TABLE_START_OFFSET, &buf);
+        persistent_storage_write(PARTITION_TABLE_START_OFFSET, &buf).await;
         info!(
             "Wrote {} bytes of partition table to persistent storage at LBA {}",
             buf.len(),
@@ -228,17 +229,19 @@ impl PartitionTable {
         Ok(())
     }
 
-    pub fn ensure_enough_persistent_storage_allocated() -> Result<(), String> {
+    pub async fn ensure_enough_persistent_storage_allocated() -> Result<(), String> {
         let size_min = Self::required_size_bytes();
-        let size_bytes = persistent_storage_size_bytes();
+        let size_bytes = persistent_storage_size_bytes().await;
         if size_bytes >= size_min {
             return Ok(());
         }
         let new_pages = (size_min - size_bytes) / PERSISTENT_STORAGE_PAGE_SIZE + 1;
 
         if new_pages > 0 {
-            persistent_storage_grow(new_pages).expect("Failed to grow persistent storage");
-            let persistent_storage_bytes_after = persistent_storage_size_bytes();
+            persistent_storage_grow(new_pages)
+                .await
+                .expect("Failed to grow persistent storage");
+            let persistent_storage_bytes_after = persistent_storage_size_bytes().await;
             info!(
                 "Persistent storage resized to bytes: {}",
                 persistent_storage_bytes_after
@@ -253,7 +256,7 @@ impl PartitionTable {
             table
                 .add_new_entry(PartitionTableEntry::new(b"DATA", 8 * 1024 * 1024))
                 .unwrap();
-            table.persist().unwrap();
+            table.persist().await.unwrap();
         } else {
             info!("Persistent storage is sufficiently large");
         }
@@ -283,12 +286,14 @@ impl std::fmt::Display for PartitionTable {
     }
 }
 
-pub fn get_partition_table() -> PartitionTable {
-    PartitionTable::read_from_persistent_storage().expect("Failed to read partition table")
+pub async fn get_partition_table() -> PartitionTable {
+    PartitionTable::read_from_persistent_storage()
+        .await
+        .expect("Failed to read partition table")
 }
 
-pub fn get_data_partition() -> PartitionTableEntry {
-    let table = get_partition_table();
+pub async fn get_data_partition() -> PartitionTableEntry {
+    let table = get_partition_table().await;
     *table
         .entries
         .get(PART_DATA)
@@ -302,22 +307,22 @@ pub const PART_DATA: usize = 1;
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_partition_table_header_default() {
+    #[tokio::test]
+    async fn test_partition_table_header_default() {
         let header = PartitionTableHeader::new();
         assert_eq!(header.magic_bytes, EXPECTED_MAGIC_BYTES);
     }
 
-    #[test]
-    fn test_partition_table_entry_serialization() {
+    #[tokio::test]
+    async fn test_partition_table_entry_serialization() {
         let entry = PartitionTableEntry::new(b"TESTPART", 0);
         let bytes = entry.to_bytes();
         let deserialized_entry = PartitionTableEntry::from_bytes(&bytes).unwrap();
         assert_eq!(entry, deserialized_entry);
     }
 
-    #[test]
-    fn test_persistent_storage_read_and_write() {
+    #[tokio::test]
+    async fn test_persistent_storage_read_and_write() {
         let file_path = tempfile::tempdir()
             .unwrap()
             .into_path()
@@ -327,17 +332,19 @@ mod tests {
         let mut table = PartitionTable::new();
         let entry = PartitionTableEntry::new(b"TESTPART", 0);
         table.add_new_entry(entry).unwrap();
-        table.persist().unwrap();
+        table.persist().await.unwrap();
 
-        let read_table = PartitionTable::read_from_persistent_storage().unwrap();
+        let read_table = PartitionTable::read_from_persistent_storage()
+            .await
+            .unwrap();
         assert_eq!(table.header.magic_bytes, read_table.header.magic_bytes);
         assert_eq!(table.num_entries, read_table.num_entries);
         assert_eq!(table.entries, read_table.entries);
     }
 
-    #[test]
-    fn test_get_data_partition() {
-        let entry = get_data_partition();
+    #[tokio::test]
+    async fn test_get_data_partition() {
+        let entry = get_data_partition().await;
         let mut label = b"DATA".to_vec();
         label.resize(8, 0);
         assert_eq!(entry.name.to_vec(), label);

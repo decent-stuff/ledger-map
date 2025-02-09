@@ -76,9 +76,10 @@ impl WasmLedgerMapEntry {
 #[wasm_bindgen]
 impl WasmLedgerMap {
     #[wasm_bindgen(constructor)]
-    pub fn new(labels_to_index: Option<Vec<String>>) -> Result<WasmLedgerMap, JsValue> {
-        let inner =
-            LedgerMap::new(labels_to_index).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    pub async fn new(labels_to_index: Option<Vec<String>>) -> Result<WasmLedgerMap, JsValue> {
+        let inner = LedgerMap::new(labels_to_index)
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
         Ok(WasmLedgerMap { inner })
     }
 
@@ -101,15 +102,17 @@ impl WasmLedgerMap {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    pub fn refresh(&mut self) -> Result<(), JsValue> {
+    pub async fn refresh(&mut self) -> Result<(), JsValue> {
         self.inner
             .refresh_ledger()
+            .await
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    pub fn commit_block(&mut self) -> Result<(), JsValue> {
+    pub async fn commit_block(&mut self) -> Result<(), JsValue> {
         self.inner
             .commit_block()
+            .await
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

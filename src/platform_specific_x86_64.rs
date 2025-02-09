@@ -156,7 +156,7 @@ pub fn get_backing_file_path() -> Option<PathBuf> {
     })
 }
 
-pub fn get_or_create_backing_file() -> Result<BackingFile, String> {
+pub async fn get_or_create_backing_file() -> Result<BackingFile, String> {
     BACKING_FILE.with(|backing_file| {
         let mut binding = backing_file.borrow_mut();
 
@@ -177,7 +177,7 @@ pub fn get_or_create_backing_file() -> Result<BackingFile, String> {
     })
 }
 
-pub fn persistent_storage_size_bytes() -> u64 {
+pub async fn persistent_storage_size_bytes() -> u64 {
     BACKING_FILE.with(|backing_file| {
         backing_file
             .borrow()
@@ -187,20 +187,22 @@ pub fn persistent_storage_size_bytes() -> u64 {
     })
 }
 
-pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
-    let mut backing_file = get_or_create_backing_file()?;
+pub async fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
+    let mut backing_file = get_or_create_backing_file().await?;
     backing_file.read(offset, buf)
 }
 
-pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
-    let mut backing_file = get_or_create_backing_file().expect("Backing file should exist");
+pub async fn persistent_storage_write(offset: u64, buf: &[u8]) {
+    let mut backing_file = get_or_create_backing_file()
+        .await
+        .expect("Backing file should exist");
     backing_file
         .write(offset, buf)
         .expect("Failed to write to persistent storage");
 }
 
-pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
-    let mut backing_file = get_or_create_backing_file()?;
+pub async fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
+    let mut backing_file = get_or_create_backing_file().await?;
     backing_file.grow(additional_pages)
 }
 
