@@ -65,4 +65,4 @@ browser = [
 ic = ["ic-cdk", "ic-cdk-timers", "ic-canister-log"]
 
 [dev-dependencies]
-tempfile = "3.16.0"
+tempfile = "3.17.0"
