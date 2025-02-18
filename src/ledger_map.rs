@@ -321,6 +321,13 @@ impl LedgerMap {
         self.metadata.borrow().num_blocks()
     }
 
+    pub fn get_latest_block_start_pos(&self) -> u64 {
+        self.metadata
+            .borrow()
+            .tip_block_start_pos()
+            .unwrap_or_default()
+    }
+
     pub fn get_latest_block_hash(&self) -> Vec<u8> {
         self.metadata.borrow().get_last_block_chain_hash().to_vec()
     }

@@ -126,6 +126,14 @@ impl WasmLedgerMap {
         self.inner.get_latest_block_timestamp_ns()
     }
 
+    pub fn get_latest_block_start_pos(&self) -> u64 {
+        self.inner.get_latest_block_start_pos()
+    }
+
+    pub fn get_next_block_start_pos(&self) -> u64 {
+        self.inner.get_next_block_start_pos()
+    }
+
     pub fn get_block_entries(&self, label: Option<String>) -> Array {
         let entries: Vec<_> = self.inner.iter(label.as_deref()).collect();
         let arr = Array::new();

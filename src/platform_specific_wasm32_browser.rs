@@ -1,28 +1,50 @@
 use anyhow::Result;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use js_sys::Error;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast; // for `dyn_ref`
 use web_sys::Storage;
 
+/// The way storage in browsers works is the following:
+/// - In browsers, local storage is limited to around 5MB.
+///   See: https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria#web_storage
+/// - Although IndexedDB can store more, it's asynchronous and not suitable for the current LedgerMap implementation.
+/// - We store the last ledger block (or data) in persistent storage (browser's local storage),
+///   which is sufficient for verifying ledger integrity.
+/// - The entire ledger is held in ephemeral (in‑memory) storage, which is populated by JavaScript on page load.
+/// - Changes to the ledger in ephemeral storage must be explicitly committed to persistent storage if needed.
+///
+/// Note that the ephemeral storage can be much larger than the last block. In such cases, only the last block should be
+/// persisted. The logic to determine the start of the last block is not known at this level, so the function
+/// `persist_last_block(block_start: u64)` is provided for higher-level callers to specify which part of the ledger
+/// constitutes the "last block."
+
+/// We store the "last block" (or relevant ledger data) in local storage using this key.
+const PERSISTENT_STORAGE_DATA_KEY: &str = "ledger_map_last_block";
+
+/// We store the offset of the last block in local storage under this key.
+const PERSISTENT_STORAGE_OFFSET_KEY: &str = "ledger_map_last_block_offset";
+
 thread_local! {
-    static LOCAL_STORAGE: RefCell<Option<Storage>> = RefCell::new(None);
-    static NUM_PAGES_ALLOCATED: RefCell<u64> = RefCell::new(0);
+    /// Ephemeral (in‑memory) ledger data. May be larger than what we persist.
+    static EPHEMERAL_STORAGE: RefCell<Vec<u8>> = RefCell::new(Vec::new());
+
+    /// The beginning offset of valid data in `EPHEMERAL_STORAGE`.
+    static EPHEMERAL_STORAGE_VALID_BEGIN: RefCell<u64> = RefCell::new(0);
+
+    /// The end offset of valid data in `EPHEMERAL_STORAGE` (one past the last valid byte).
+    static EPHEMERAL_STORAGE_VALID_END: RefCell<u64> = RefCell::new(0);
+
+    /// Browser local storage handle, if available.
+    /// If multi-threading is introduced in the future, you may need to synchronize access here.
+    static PERSISTENT_LOCAL_STORAGE: RefCell<Option<Storage>> = RefCell::new(None);
 }
 
-fn num_pages_allocated_get() -> u64 {
-    NUM_PAGES_ALLOCATED.with(|n| *n.borrow())
-}
-
-fn num_pages_allocated_set(n: u64) {
-    NUM_PAGES_ALLOCATED.with(|num| *num.borrow_mut() = n);
-}
-
-fn num_pages_allocated_inc() {
-    NUM_PAGES_ALLOCATED.with(|n| *n.borrow_mut() += 1);
-}
-
-// Re-export macros for use in other modules
+//-------------------------------------
+// Re-export macros for easy logging
+//-------------------------------------
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {{
@@ -51,33 +73,40 @@ macro_rules! error {
     }};
 }
 
-// Export functions that match the interface expected by the rest of the codebase
+/// Public convenience for debug logging
 pub fn export_debug(msg: &str) {
     debug!("{}", msg);
 }
 
+/// Public convenience for info logging
 pub fn export_info(msg: &str) {
     info!("{}", msg);
 }
 
+/// Public convenience for warning logging
 pub fn export_warn(msg: &str) {
     warn!("{}", msg);
 }
 
+/// Public convenience for error logging
 pub fn export_error(msg: &str) {
     error!("{}", msg);
 }
 
 fn is_storage_initialized() -> bool {
-    LOCAL_STORAGE.with(|ls| ls.borrow().is_some())
+    PERSISTENT_LOCAL_STORAGE.with(|ls| ls.borrow().is_some())
 }
 
+/// Ensures that local storage is initialized. Called automatically at startup.
+///
+/// If you run in a browser environment with default WASM, this function
+/// is single-threaded, so no concurrency concerns arise here.
 #[wasm_bindgen(start)]
-pub fn init_storage() {
+pub fn ensure_storage_is_initialized() {
     if is_storage_initialized() {
         return;
     }
-    info!("Initializing storage");
+    info!("Initializing persistent storage");
 
     let window = web_sys::window().expect("no global window exists");
     let storage = window
@@ -85,210 +114,293 @@ pub fn init_storage() {
         .expect("no local storage exists")
         .expect("failed to get local storage");
 
-    // Initialize storage in a separate scope to avoid borrow issues
-    LOCAL_STORAGE.with(|ls| {
+    PERSISTENT_LOCAL_STORAGE.with(|ls| {
         *ls.borrow_mut() = Some(storage);
-        info!("Storage initialized successfully");
+        info!("Persistent storage initialized successfully");
     })
 }
 
+/// Clears both browser local storage and the in-memory (ephemeral) storage.
 #[wasm_bindgen]
 pub fn clear_storage() {
-    web_sys::window()
-        .expect("no global window exists")
+    let window = web_sys::window().expect("no global window exists");
+    let storage = window
         .local_storage()
         .expect("no local storage exists")
-        .expect("failed to get local storage")
-        .clear()
-        .expect("failed to clear local storage");
+        .expect("failed to get local storage");
+    storage.clear().expect("failed to clear local storage");
 
-    LOCAL_STORAGE.with(|ls| {
+    PERSISTENT_LOCAL_STORAGE.with(|ls| {
         *ls.borrow_mut() = None;
     });
 
-    num_pages_allocated_set(0);
+    clear_ephemeral_storage();
 }
 
-// Use 1MB chunks for efficient storage
-pub const PERSISTENT_STORAGE_PAGE_SIZE: u64 = 1024 * 1024;
-
-// Storage functions that match the interface expected by LedgerMap
-
-fn get_chunk_key(chunk_index: u64) -> String {
-    format!("ledger_map_chunk_{}", chunk_index)
+/// Clears the in-memory (ephemeral), simulating a new browser session.
+#[wasm_bindgen]
+pub fn clear_ephemeral_storage() {
+    EPHEMERAL_STORAGE.with(|es| {
+        *es.borrow_mut() = Vec::new();
+    });
+    EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow_mut() = 0);
+    EPHEMERAL_STORAGE_VALID_END.with(|e| *e.borrow_mut() = 0);
 }
 
-fn get_chunk_index_and_offset(offset: u64) -> (u64, usize) {
-    let chunk_index = offset / PERSISTENT_STORAGE_PAGE_SIZE;
-    let chunk_offset = (offset % PERSISTENT_STORAGE_PAGE_SIZE) as usize;
-    (chunk_index, chunk_offset)
-}
-
-fn encode_bytes(bytes: &[u8]) -> String {
-    // Use base64 encoding since LocalStorage only supports strings
-    BASE64.encode(bytes)
-}
-
-fn decode_bytes(data: &str) -> Vec<u8> {
-    // Decode base64 string back to bytes
-    BASE64.decode(data).unwrap_or_default()
-}
-
+/// Reads data from ephemeral storage only.
+/// If the requested range is within the valid region of ephemeral storage,
+/// the data is copied into `buf`. Otherwise, an error is returned.
 pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
-    if buf.is_empty() {
-        return Ok(());
-    }
+    let valid_begin = EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow());
+    let valid_end = EPHEMERAL_STORAGE_VALID_END.with(|e| *e.borrow());
 
-    let storage_size = persistent_storage_size_bytes();
-    if offset >= storage_size {
-        // Fill buffer with zeros if reading beyond storage size
-        buf.fill(0);
-        return Ok(());
-    }
-
-    LOCAL_STORAGE.with(|storage| {
-        if let Some(storage) = &*storage.borrow() {
-            let (mut chunk_index, chunk_offset) = get_chunk_index_and_offset(offset);
-            let mut bytes_read = 0;
-
-            // Read data from chunks until buffer is full or no more data
-            while bytes_read < buf.len() {
-                let chunk_key = get_chunk_key(chunk_index);
-
-                match storage.get_item(&chunk_key) {
-                    Ok(Some(data)) => {
-                        let chunk_data = decode_bytes(&data);
-                        if chunk_data.is_empty() {
-                            // Fill remaining buffer with zeros for empty chunks
-                            buf[bytes_read..].fill(0);
-                            break;
-                        }
-
-                        // Calculate read positions
-                        let chunk_start = if bytes_read == 0 { chunk_offset } else { 0 };
-                        let remaining = buf.len() - bytes_read;
-                        let chunk_available = chunk_data.len().saturating_sub(chunk_start);
-                        let copy_size = remaining.min(chunk_available);
-
-                        if copy_size == 0 {
-                            // Fill remaining buffer with zeros if no more data to copy
-                            buf[bytes_read..].fill(0);
-                            break;
-                        }
-
-                        // Copy data from this chunk
-                        buf[bytes_read..bytes_read + copy_size]
-                            .copy_from_slice(&chunk_data[chunk_start..chunk_start + copy_size]);
-
-                        bytes_read += copy_size;
-                        chunk_index += 1;
-                    }
-                    Ok(None) | Err(_) => {
-                        // Fill remaining buffer with zeros if chunk doesn't exist
-                        buf[bytes_read..].fill(0);
-                        break;
-                    }
-                }
-            }
-
-            // Fill any remaining buffer space with zeros
-            if bytes_read < buf.len() {
-                buf[bytes_read..].fill(0);
-            }
-        }
-        Ok(())
-    })
-}
-
-pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
-    init_storage();
-    let size_bytes_prev = persistent_storage_size_bytes();
-    let size_bytes_expected = offset + buf.len() as u64;
-    if size_bytes_expected > size_bytes_prev {
-        persistent_storage_grow(
-            (size_bytes_expected - size_bytes_prev) / PERSISTENT_STORAGE_PAGE_SIZE + 1,
+    if offset < valid_begin || offset + buf.len() as u64 > valid_end {
+        return Err(format!(
+            "Requested data offset [{}..{}] is not available in ephemeral storage [{}..{}]",
+            offset,
+            offset + buf.len() as u64,
+            valid_begin,
+            valid_end
         )
-        .unwrap();
+        .to_string());
     }
-    LOCAL_STORAGE.with(|storage| {
-        if let Some(storage) = &*storage.borrow() {
-            let (mut chunk_index, chunk_offset) = get_chunk_index_and_offset(offset);
-            let mut bytes_written = 0;
 
-            while bytes_written < buf.len() {
-                let chunk_key = get_chunk_key(chunk_index);
+    EPHEMERAL_STORAGE.with(|es| {
+        let storage = es.borrow();
+        info!(
+            "persistent_storage_read: offset: {}, len: {} from storage with len {}",
+            offset,
+            buf.len(),
+            storage.len()
+        );
+        buf.copy_from_slice(&storage[offset as usize..(offset as usize + buf.len())]);
+    });
+    Ok(())
+}
 
-                // Read existing chunk or create new one
-                let mut chunk_data = if let Ok(Some(data)) = storage.get_item(&chunk_key) {
-                    decode_bytes(&data)
-                } else {
-                    Vec::new()
-                };
+/// Updates ephemeral storage with new data starting at `offset`.
+/// Resizes ephemeral storage if needed and updates the valid region.
+/// This function does NOT persist the data to browser local storage.
+/// To persist the latest block, call `persist_last_block`.
+pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
+    EPHEMERAL_STORAGE.with(|es| {
+        let mut storage = es.borrow_mut();
+        let current_len = storage.len() as u64;
+        let new_end = offset + buf.len() as u64;
 
-                // Calculate write positions
-                let chunk_start = if bytes_written == 0 { chunk_offset } else { 0 };
-                let remaining = buf.len() - bytes_written;
-                let space_in_chunk = PERSISTENT_STORAGE_PAGE_SIZE as usize - chunk_start;
-                let copy_size = remaining.min(space_in_chunk);
-
-                // Ensure chunk is large enough
-                if chunk_start + copy_size > chunk_data.len() {
-                    chunk_data.resize(chunk_start + copy_size, 0);
-                }
-
-                // Copy data to this chunk
-                chunk_data[chunk_start..chunk_start + copy_size]
-                    .copy_from_slice(&buf[bytes_written..bytes_written + copy_size]);
-
-                // Save chunk
-                storage
-                    .set_item(&chunk_key, &encode_bytes(&chunk_data))
-                    .unwrap_or_else(|e| panic!("Failed to write to storage: {:?}", e));
-
-                bytes_written += copy_size;
-                chunk_index += 1;
-            }
-        } else {
-            panic!("Storage not initialized");
+        if new_end > current_len {
+            storage.resize(new_end as usize, 0);
         }
+
+        info!(
+            "persistent_storage_write: offset: {}, len: {}",
+            offset,
+            buf.len()
+        );
+        storage[offset as usize..(offset as usize + buf.len())].copy_from_slice(buf);
+
+        let valid_begin = EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow());
+        if offset < valid_begin {
+            EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow_mut() = offset);
+        }
+        EPHEMERAL_STORAGE_VALID_END.with(|e| {
+            let mut valid = e.borrow_mut();
+            if new_end > *valid {
+                *valid = new_end;
+            }
+        });
+    });
+}
+
+pub const PERSISTENT_STORAGE_PAGE_SIZE: u64 = 4 * 1024;
+
+pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
+    info!(
+        "persistent_storage_grow: {} additional_pages.",
+        additional_pages
+    );
+    let prev_size = persistent_storage_size_bytes();
+    EPHEMERAL_STORAGE.with(|es| {
+        let mut storage = es.borrow_mut();
+        if additional_pages > 0 {
+            let additional_bytes = additional_pages * PERSISTENT_STORAGE_PAGE_SIZE;
+            let new_size = storage.len() + additional_bytes as usize;
+            storage.resize(new_size, 0); // Fill new space with zeros
+        }
+        Ok(prev_size)
     })
 }
 
-/// LedgerMap first calls this function to determine the size of the persistent storage
+/// Returns the current length of the ephemeral storage buffer (in bytes).
 pub fn persistent_storage_size_bytes() -> u64 {
-    init_storage();
-    num_pages_allocated_get() * PERSISTENT_STORAGE_PAGE_SIZE
+    EPHEMERAL_STORAGE.with(|es| {
+        let len = es.borrow().len() as u64;
+        ((len + PERSISTENT_STORAGE_PAGE_SIZE - 1) / PERSISTENT_STORAGE_PAGE_SIZE)
+            * PERSISTENT_STORAGE_PAGE_SIZE
+    })
 }
 
-/// Grows the persistent storage by the specified number of pages
-/// Returns the *previous* number of pages
-pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
-    let num_pages_prev = num_pages_allocated_get();
-    LOCAL_STORAGE.with(|storage| {
-        if let Some(storage) = &*storage.borrow() {
-            for i in 0..additional_pages {
-                let chunk_key = get_chunk_key(num_pages_prev + i);
+/// Initializes ephemeral storage from data in local storage (if it exists).
+/// If nothing is found in persistent storage, ephemeral storage is set to empty,
+/// and valid offsets are set to 0.
+pub fn init_ephemeral_storage_from_persistent() -> Result<(), String> {
+    info!("Initializing ephemeral storage from persistent storage.");
+    let (persistent_data, persistent_offset) = PERSISTENT_LOCAL_STORAGE.with(|ls| {
+        if let Some(storage) = &*ls.borrow() {
+            (
+                storage.get_item(PERSISTENT_STORAGE_DATA_KEY).ok().flatten(),
                 storage
-                    .set_item(&chunk_key, &"")
-                    .unwrap_or_else(|e| panic!("Failed to write to storage: {:?}", e));
-                num_pages_allocated_inc();
-            }
+                    .get_item(PERSISTENT_STORAGE_OFFSET_KEY)
+                    .ok()
+                    .flatten(),
+            )
         } else {
-            warn!("Storage not initialized");
+            (None, None)
         }
     });
 
-    Ok(num_pages_prev)
+    match (persistent_data, persistent_offset) {
+        (Some(data), Some(offset)) => {
+            let decoded = decode_bytes(&data);
+            if decoded.is_empty() {
+                error!("Persistent ledger data was corrupted or invalid base64; resetting ephemeral storage.");
+                report_and_recover_corrupted_ledger();
+            } else {
+                let offset: u64 = match offset.parse() {
+                    Ok(o) => o,
+                    Err(e) => {
+                        error!(
+                            "Persistent ledger offset was corrupted; resetting ephemeral storage."
+                        );
+                        report_and_recover_corrupted_ledger();
+                        return Err(e.to_string());
+                    }
+                };
+                let valid_end = offset as usize + decoded.len();
+                EPHEMERAL_STORAGE.with(|es| {
+                    let mut es = es.borrow_mut();
+                    es.resize(valid_end, 0);
+                    es[offset as usize..].copy_from_slice(&decoded);
+                });
+                EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow_mut() = offset);
+                EPHEMERAL_STORAGE_VALID_END.with(|e| *e.borrow_mut() = valid_end as u64);
+            }
+        }
+        _ => {
+            warn!("No persistent storage data found; initializing ephemeral storage.");
+            // Initialize everything empty
+            EPHEMERAL_STORAGE.with(|es| {
+                *es.borrow_mut() = Vec::new();
+            });
+            EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow_mut() = 0);
+            EPHEMERAL_STORAGE_VALID_END.with(|e| *e.borrow_mut() = 0);
+        }
+    }
+    Ok(())
 }
 
+/// Demonstrates how you might handle a corrupted ledger: we clear and reset ephemeral data
+/// and log a warning. This is called automatically if we decode an empty vector from an
+/// unexpected base64. In production, you might handle it differently based on your needs.
+fn report_and_recover_corrupted_ledger() {
+    warn!("Recovering from corrupted ledger data... clearing ephemeral ledger.");
+    EPHEMERAL_STORAGE.with(|es| {
+        es.borrow_mut().clear();
+    });
+    EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow_mut() = 0);
+    EPHEMERAL_STORAGE_VALID_END.with(|e| *e.borrow_mut() = 0);
+}
+
+/// Persists the last block of the ledger (from `block_start` to the end of ephemeral storage)
+/// in the browser local storage. Overwrites any previous ledger data in local storage.
+pub fn persist_last_block(block_start: u64) -> Result<(), String> {
+    EPHEMERAL_STORAGE.with(|es| {
+        let storage = es.borrow();
+        info!(
+            "Persisting data in browser local storage: [{}..{}]",
+            block_start,
+            storage.len()
+        );
+        if block_start as usize > storage.len() {
+            return Err(format!(
+                "block_start {} is beyond ephemeral storage length {}",
+                block_start,
+                storage.len()
+            ));
+        }
+        let last_block = &storage[block_start as usize..];
+        let encoded = encode_bytes(last_block);
+        let last_block_offset_str = format!("{}", block_start);
+
+        PERSISTENT_LOCAL_STORAGE.with(|ls| {
+            if let Some(storage) = &*ls.borrow() {
+                write_with_quota_check(storage, PERSISTENT_STORAGE_DATA_KEY, &encoded)?;
+                write_with_quota_check(
+                    storage,
+                    PERSISTENT_STORAGE_OFFSET_KEY,
+                    &last_block_offset_str,
+                )
+            } else {
+                Err("Persistent local storage not initialized".into())
+            }
+        })
+    })
+}
+
+//-------------------------------------
+// Internal Utility Functions
+//-------------------------------------
+
+/// Writes to `localStorage` and checks for quota errors or other exceptions,
+/// returning a descriptive error if something goes wrong.
+fn write_with_quota_check(storage: &Storage, key: &str, value: &str) -> Result<(), String> {
+    match storage.set_item(key, value) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            // Try casting the error to a js_sys::Error and check its name property.
+            if let Some(js_error) = e.dyn_ref::<Error>() {
+                if js_error.name() == "QuotaExceededError" {
+                    return Err(format!(
+                        "Browser storage quota exceeded when writing key '{}'",
+                        key
+                    ));
+                }
+            }
+            // Otherwise, it's a different error
+            Err(format!(
+                "Failed to write key '{}' to local storage: {:?}",
+                key, e
+            ))
+        }
+    }
+}
+
+/// Encodes a slice of bytes into a base64 string.
+fn encode_bytes(bytes: &[u8]) -> String {
+    BASE64.encode(bytes)
+}
+
+/// Decodes a base64 string into bytes.
+/// Returns an empty vector on error and logs it, which triggers a reset
+/// in ledger initialization logic if relevant.
+fn decode_bytes(data: &str) -> Vec<u8> {
+    BASE64.decode(data).unwrap_or_else(|e| {
+        error!("Failed to decode base64 data: {:?}", e);
+        Vec::new()
+    })
+}
+
+/// No-op in browsers. Could be used in other environments (e.g., Node with fs).
 pub fn set_backing_file(_path: Option<std::path::PathBuf>) -> Result<(), String> {
-    Ok(()) // No-op for browser implementation
+    Ok(())
 }
 
+/// Always `None` in browsers since we have no real file path here.
 pub fn get_backing_file_path() -> Option<std::path::PathBuf> {
-    None // No backing file in browser implementation
+    None
 }
 
+/// Returns a timestamp in nanoseconds, derived from the browser's high-resolution timer.
 pub fn get_timestamp_nanos() -> u64 {
     (js_sys::Date::now() * 1_000_000.0) as u64
 }

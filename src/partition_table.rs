@@ -142,11 +142,21 @@ impl Default for PartitionTable {
 
 impl PartitionTable {
     pub fn new() -> Self {
-        PartitionTable {
+        let mut table = PartitionTable {
             num_entries: 0,
             header: PartitionTableHeader::new(),
             entries: Vec::with_capacity(PARTITION_TABLE_MAX_ENTRIES),
-        }
+        };
+        table
+            .add_new_entry(PartitionTableEntry::new(
+                b"PARTTABL",
+                PartitionTableHeader::size() as u64,
+            ))
+            .unwrap();
+        table
+            .add_new_entry(PartitionTableEntry::new(b"DATA", 8 * 1024 * 1024))
+            .unwrap();
+        table
     }
 
     pub fn size() -> usize {
@@ -243,16 +253,7 @@ impl PartitionTable {
                 "Persistent storage resized to bytes: {}",
                 persistent_storage_bytes_after
             );
-            let mut table = PartitionTable::new();
-            table
-                .add_new_entry(PartitionTableEntry::new(
-                    b"PARTTABL",
-                    PartitionTableHeader::size() as u64,
-                ))
-                .unwrap();
-            table
-                .add_new_entry(PartitionTableEntry::new(b"DATA", 8 * 1024 * 1024))
-                .unwrap();
+            let table = PartitionTable::new();
             table.persist().unwrap();
         } else {
             info!("Persistent storage is sufficiently large");
@@ -284,7 +285,7 @@ impl std::fmt::Display for PartitionTable {
 }
 
 pub fn get_partition_table() -> PartitionTable {
-    PartitionTable::read_from_persistent_storage().expect("Failed to read partition table")
+    PartitionTable::read_from_persistent_storage().unwrap_or_default()
 }
 
 pub fn get_data_partition() -> PartitionTableEntry {
