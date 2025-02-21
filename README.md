@@ -23,7 +23,7 @@ A secure, persistent key-value storage system with blockchain-like properties, i
 ```toml
 # Cargo.toml
 [dependencies]
-ledger-map = "0.4.2"
+ledger-map = "0.4.3"
 ```
 
 ```rust
@@ -75,17 +75,17 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ledger-map = "0.4.2"
+ledger-map = "0.4.3"
 ```
 
 For specific features:
 
 ```toml
 # For browser/WebAssembly support
-ledger-map = { version = "0.4.2", features = ["browser"] }
+ledger-map = { version = "0.4.3", features = ["browser"] }
 
 # For Internet Computer support
-ledger-map = { version = "0.4.2", features = ["ic"] }
+ledger-map = { version = "0.4.3", features = ["ic"] }
 ```
 
 ### Web/TypeScript
