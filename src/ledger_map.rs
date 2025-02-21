@@ -7,6 +7,7 @@ use crate::partition_table;
 use crate::platform_specific::{
     persistent_storage_read, persistent_storage_size_bytes, persistent_storage_write,
 };
+use crate::{debug, info, warn};
 use crate::{platform_specific, AHashSet};
 use anyhow::Result;
 use borsh::to_vec;
@@ -85,9 +86,9 @@ impl LedgerMap {
 
     pub fn commit_block(&mut self) -> anyhow::Result<()> {
         if self.next_block_entries.is_empty() {
-            // crate::debug!("Commit of empty block invoked, skipping");
+            // debug!("Commit of empty block invoked, skipping");
         } else {
-            crate::info!(
+            info!(
                 "Commit non-empty block, with {} entries",
                 self.next_block_entries.len()
             );
@@ -168,13 +169,13 @@ impl LedgerMap {
 
         // If the backend is empty or non-existing, just return
         if persistent_storage_size_bytes() == 0 {
-            crate::warn!("Persistent storage is empty");
+            warn!("Persistent storage is empty");
             return Ok(());
         }
 
         let data_part_entry = partition_table::get_data_partition();
         if persistent_storage_size_bytes() < data_part_entry.start_lba {
-            crate::warn!("No data found in persistent storage");
+            warn!("No data found in persistent storage");
             return Ok(());
         }
 
@@ -245,7 +246,7 @@ impl LedgerMap {
                 }
             }
         }
-        crate::debug!("Ledger refreshed successfully");
+        debug!("Ledger refreshed successfully");
 
         Ok(())
     }
@@ -359,7 +360,7 @@ impl LedgerMap {
 
     fn _persist_block(&self, ledger_block: LedgerBlock) -> anyhow::Result<()> {
         let block_serialized_data = ledger_block.serialize()?;
-        crate::info!(
+        info!(
             "Appending block @timestamp {} with {} bytes data: {}",
             ledger_block.timestamp(),
             block_serialized_data.len(),
@@ -423,10 +424,9 @@ impl LedgerMap {
         let block_header = LedgerBlockHeader::deserialize(buf.as_ref())?;
         let block_len_bytes = block_header.jump_bytes_next_block();
 
-        crate::debug!(
+        debug!(
             "Reading persisted block of {} bytes at offset 0x{:0x}",
-            block_len_bytes,
-            offset
+            block_len_bytes, offset
         );
 
         // Read the block as raw bytes
