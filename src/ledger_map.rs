@@ -410,10 +410,10 @@ impl LedgerMap {
             next_block_start_pos,
         );
 
-        // Finally, persist 0u32 to mark the end of the block chain
+        // Finally, persist LedgerBlockHeader number of bytes to mark the end of the block chain
         persistent_storage_write(
             self.metadata.borrow().next_block_start_pos() + jump_bytes_next_block as u64,
-            &[0u8; size_of::<u32>()],
+            &[0u8; size_of::<LedgerBlockHeader>()],
         );
         Ok(())
     }
