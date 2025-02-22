@@ -236,6 +236,11 @@ pub fn persistent_storage_size_bytes() -> u64 {
     EPHEMERAL_STORAGE.with(|es| es.borrow().len() as u64)
 }
 
+/// Returns the last valid offset in the ephemeral storage buffer.
+pub fn persistent_storage_last_valid_offset() -> u64 {
+    EPHEMERAL_STORAGE_VALID_END.with(|e| *e.borrow())
+}
+
 /// Initializes ephemeral storage from data in local storage (if it exists).
 /// If nothing is found in persistent storage, ephemeral storage is set to empty,
 /// and valid offsets are set to 0.
