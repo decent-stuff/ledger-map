@@ -187,6 +187,10 @@ pub fn persistent_storage_size_bytes() -> u64 {
     })
 }
 
+pub fn persistent_storage_last_valid_offset() -> u64 {
+    persistent_storage_size_bytes()
+}
+
 pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String> {
     let mut backing_file = get_or_create_backing_file()?;
     backing_file.read(offset, buf)
