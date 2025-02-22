@@ -233,11 +233,7 @@ pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
 
 /// Returns the current length of the ephemeral storage buffer (in bytes).
 pub fn persistent_storage_size_bytes() -> u64 {
-    EPHEMERAL_STORAGE.with(|es| {
-        let len = es.borrow().len() as u64;
-        ((len + PERSISTENT_STORAGE_PAGE_SIZE - 1) / PERSISTENT_STORAGE_PAGE_SIZE)
-            * PERSISTENT_STORAGE_PAGE_SIZE
-    })
+    EPHEMERAL_STORAGE.with(|es| es.borrow().len() as u64)
 }
 
 /// Initializes ephemeral storage from data in local storage (if it exists).
