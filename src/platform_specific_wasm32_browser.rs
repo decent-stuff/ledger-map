@@ -106,7 +106,6 @@ pub fn ensure_storage_is_initialized() {
     if is_storage_initialized() {
         return;
     }
-    info!("Initializing persistent storage");
 
     let window = web_sys::window().expect("no global window exists");
     let storage = window
@@ -167,12 +166,12 @@ pub fn persistent_storage_read(offset: u64, buf: &mut [u8]) -> Result<(), String
 
     EPHEMERAL_STORAGE.with(|es| {
         let storage = es.borrow();
-        info!(
-            "persistent_storage_read: offset: {}, len: {} from storage with len {}",
-            offset,
-            buf.len(),
-            storage.len()
-        );
+        // debug!(
+        //     "persistent_storage_read: offset: {}, len: {} from storage with len {}",
+        //     offset,
+        //     buf.len(),
+        //     storage.len()
+        // );
         buf.copy_from_slice(&storage[offset as usize..(offset as usize + buf.len())]);
     });
     Ok(())
@@ -192,11 +191,11 @@ pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
             storage.resize(new_end as usize, 0);
         }
 
-        info!(
-            "persistent_storage_write: offset: {}, len: {}",
-            offset,
-            buf.len()
-        );
+        // debug!(
+        //     "persistent_storage_write: offset: {}, len: {}",
+        //     offset,
+        //     buf.len()
+        // );
         storage[offset as usize..(offset as usize + buf.len())].copy_from_slice(buf);
 
         let valid_begin = EPHEMERAL_STORAGE_VALID_BEGIN.with(|b| *b.borrow());
@@ -215,7 +214,7 @@ pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
 pub const PERSISTENT_STORAGE_PAGE_SIZE: u64 = 64 * 1024;
 
 pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
-    info!(
+    debug!(
         "persistent_storage_grow: {} additional_pages.",
         additional_pages
     );
@@ -318,7 +317,7 @@ pub fn persist_last_block(block_start: u64) -> Result<(), String> {
     EPHEMERAL_STORAGE.with(|es| {
         let storage = es.borrow();
         info!(
-            "Persisting data in browser local storage: [{}..{}]",
+            "Persisting block of data in BROWSER LOCAL STORAGE: [{}..{}]",
             block_start,
             storage.len()
         );

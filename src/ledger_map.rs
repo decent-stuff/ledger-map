@@ -430,11 +430,6 @@ impl LedgerMap {
         let block_header = LedgerBlockHeader::deserialize(buf.as_ref())?;
         let block_len_bytes = block_header.jump_bytes_next_block();
 
-        debug!(
-            "Reading persisted block of {} bytes at offset 0x{:0x}",
-            block_len_bytes, offset
-        );
-
         // Read the block as raw bytes
         let mut buf = vec![0u8; block_len_bytes as usize];
         persistent_storage_read(offset + LedgerBlockHeader::sizeof() as u64, &mut buf)
