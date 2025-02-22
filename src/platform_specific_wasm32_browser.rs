@@ -212,7 +212,7 @@ pub fn persistent_storage_write(offset: u64, buf: &[u8]) {
     });
 }
 
-pub const PERSISTENT_STORAGE_PAGE_SIZE: u64 = 4 * 1024;
+pub const PERSISTENT_STORAGE_PAGE_SIZE: u64 = 64 * 1024;
 
 pub fn persistent_storage_grow(additional_pages: u64) -> Result<u64, String> {
     info!(
