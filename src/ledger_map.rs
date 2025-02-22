@@ -24,6 +24,12 @@ pub struct LedgerMap {
     current_timestamp_nanos: fn() -> u64,
 }
 
+impl Default for LedgerMap {
+    fn default() -> Self {
+        Self::new(None).unwrap()
+    }
+}
+
 impl LedgerMap {
     /// Create a new LedgerMap instance.
     /// If `labels_to_index` is `None`, then all labels will be indexed.
