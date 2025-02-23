@@ -17,6 +17,8 @@ pub struct MetadataV1 {
     tip_block_start_pos: Option<u64>,
     /// The offset in the persistent storage where the next block will be written.
     next_block_start_pos: u64,
+    /// The offset in the persistent storage where the first block was written.
+    first_block_start_pos: u64,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
@@ -35,6 +37,7 @@ impl Default for Metadata {
             tip_block_timestamp_ns: 0,
             tip_block_start_pos: Some(next_block_start_pos),
             next_block_start_pos,
+            first_block_start_pos: 0,
         })
     }
 }
@@ -84,6 +87,12 @@ impl Metadata {
         }
     }
 
+    pub fn first_block_start_pos(&self) -> u64 {
+        match self {
+            Metadata::V1(metadata) => metadata.first_block_start_pos,
+        }
+    }
+
     pub fn update_from_appended_block(
         &mut self,
         new_chain_hash: &[u8],
@@ -93,11 +102,17 @@ impl Metadata {
         match self {
             Metadata::V1(metadata) => {
                 metadata.num_blocks += 1;
+                let block_start_pos = metadata.next_block_start_pos;
                 metadata.prev_block_start_pos = metadata.tip_block_start_pos;
                 metadata.tip_block_chain_hash = new_chain_hash.to_vec();
                 metadata.tip_block_timestamp_ns = block_timestamp_ns;
                 metadata.tip_block_start_pos = Some(metadata.next_block_start_pos);
                 metadata.next_block_start_pos = next_block_start_pos;
+                if metadata.first_block_start_pos == 0
+                    || block_start_pos < metadata.first_block_start_pos
+                {
+                    metadata.first_block_start_pos = block_start_pos;
+                }
             }
         }
     }

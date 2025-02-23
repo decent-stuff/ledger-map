@@ -351,4 +351,49 @@ mod tests {
         assert_eq!(headers[2].jump_bytes_prev_block(), -(blk1_bytes as i32));
         assert_eq!(headers[2].jump_bytes_next_block(), blk2_bytes as u32);
     }
+
+    #[test]
+    fn test_get_block_at_offset() {
+        // Create a new ledger
+        let mut ledger_map = new_temp_ledger(None);
+
+        // Create some entries and commit them
+        ledger_map.upsert("label1", b"key1", b"value1").unwrap();
+        ledger_map.commit_block().unwrap();
+        let first_block_pos = ledger_map.metadata.borrow().first_block_start_pos();
+        assert!(first_block_pos > 0);
+
+        ledger_map.upsert("label2", b"key2", b"value2").unwrap();
+        ledger_map.commit_block().unwrap();
+        let second_block_pos = ledger_map.get_latest_block_start_pos();
+
+        // Test getting block at first position
+        let (header1, block1) = ledger_map.get_block_at_offset(0).unwrap();
+        assert_eq!(block1.entries().len(), 1);
+        assert_eq!(block1.entries()[0].label(), "label1");
+        assert_eq!(block1.entries()[0].key(), b"key1");
+        assert_eq!(block1.entries()[0].value(), b"value1");
+        assert_eq!(header1.jump_bytes_prev_block(), 0);
+        assert!(header1.jump_bytes_next_block() > 0);
+
+        // Test getting block at second position
+        let (header2, block2) = ledger_map.get_block_at_offset(second_block_pos).unwrap();
+        assert_eq!(block2.entries().len(), 1);
+        assert_eq!(block2.entries()[0].label(), "label2");
+        assert_eq!(block2.entries()[0].key(), b"key2");
+        assert_eq!(block2.entries()[0].value(), b"value2");
+        assert!(header2.jump_bytes_prev_block() < 0); // Should point back to previous block
+
+        // Test getting block at invalid position (before first block)
+        let result = ledger_map.get_block_at_offset(0);
+        assert!(result.is_ok()); // Should return first block instead of error
+        let (header, block) = result.unwrap();
+        assert_eq!(block.entries()[0].label(), "label1"); // Should get first block
+        assert_eq!(header.jump_bytes_prev_block(), 0);
+
+        // Test getting block at non-existent position
+        let invalid_pos = second_block_pos + 1000;
+        let result = ledger_map.get_block_at_offset(invalid_pos);
+        assert!(result.is_err());
+    }
 }

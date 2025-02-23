@@ -323,6 +323,19 @@ impl LedgerMap {
         })
     }
 
+    pub fn get_block_at_offset(
+        &self,
+        offset: u64,
+    ) -> Result<(LedgerBlockHeader, LedgerBlock), LedgerError> {
+        println!("provided offset {}", offset);
+        let offset = if offset < self.metadata.borrow().first_block_start_pos() {
+            self.metadata.borrow().first_block_start_pos()
+        } else {
+            offset
+        };
+        self._persisted_block_read(offset)
+    }
+
     pub fn get_blocks_count(&self) -> usize {
         self.metadata.borrow().num_blocks()
     }
