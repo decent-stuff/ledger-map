@@ -4,6 +4,7 @@ use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use flate2::write::ZlibEncoder;
 use flate2::{read::ZlibDecoder, Compression};
+use serde::{Deserialize, Serialize};
 use std::io;
 
 /// Enum defining the different operations that can be performed on entries.
@@ -84,7 +85,9 @@ impl std::fmt::Display for LedgerEntry {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// Header for a ledger block
+/// Serialize and Deserialize are used to serialize to JSON, when and if needed by end users. This is not used internally.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct LedgerBlockHeaderV1 {
     block_version: u32,
     jump_bytes_prev: i32,
@@ -92,7 +95,9 @@ pub struct LedgerBlockHeaderV1 {
     reserved: u32,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// Header for a ledger block
+/// Serialize and Deserialize are used to serialize to JSON, when and if needed by end users. This is not used internally.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum LedgerBlockHeader {
     V1(LedgerBlockHeaderV1),
 }
