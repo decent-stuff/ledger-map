@@ -37,7 +37,7 @@ impl Default for Metadata {
             tip_block_timestamp_ns: 0,
             tip_block_start_pos: Some(next_block_start_pos),
             next_block_start_pos,
-            first_block_start_pos: 0,
+            first_block_start_pos: next_block_start_pos,
         })
     }
 }
@@ -108,9 +108,7 @@ impl Metadata {
                 metadata.tip_block_timestamp_ns = block_timestamp_ns;
                 metadata.tip_block_start_pos = Some(metadata.next_block_start_pos);
                 metadata.next_block_start_pos = next_block_start_pos;
-                if metadata.first_block_start_pos == 0
-                    || block_start_pos < metadata.first_block_start_pos
-                {
+                if block_start_pos > 0 && block_start_pos < metadata.first_block_start_pos {
                     metadata.first_block_start_pos = block_start_pos;
                 }
             }
