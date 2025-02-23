@@ -192,6 +192,8 @@ pub struct LedgerBlockV1 {
     entries: Vec<LedgerEntry>,
     timestamp: u64,
     parent_hash: Vec<u8>,
+    #[borsh(skip)]
+    offset: u64,
 }
 
 impl LedgerBlockV1 {
@@ -200,7 +202,12 @@ impl LedgerBlockV1 {
             entries,
             timestamp,
             parent_hash,
+            offset: 0,
         }
+    }
+
+    pub fn with_offset(self, offset: u64) -> Self {
+        LedgerBlockV1 { offset, ..self }
     }
 
     pub fn serialize(&self) -> io::Result<Vec<u8>> {
@@ -214,6 +221,10 @@ impl LedgerBlockV1 {
         let v = borsh::de::from_reader(&mut e)?;
         Ok(v)
     }
+
+    pub fn get_offset(&self) -> u64 {
+        self.offset
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -224,6 +235,18 @@ pub enum LedgerBlock {
 impl LedgerBlock {
     pub fn new(entries: Vec<LedgerEntry>, timestamp: u64, parent_hash: Vec<u8>) -> Self {
         LedgerBlock::V1(LedgerBlockV1::new(entries, timestamp, parent_hash))
+    }
+
+    pub fn with_offset(self, offset: u64) -> Self {
+        match self {
+            LedgerBlock::V1(block) => LedgerBlock::V1(block.with_offset(offset)),
+        }
+    }
+
+    pub fn get_offset(&self) -> u64 {
+        match self {
+            LedgerBlock::V1(block) => block.get_offset(),
+        }
     }
 
     pub fn entries(&self) -> &[LedgerEntry] {

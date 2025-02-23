@@ -327,7 +327,6 @@ impl LedgerMap {
         &self,
         offset: u64,
     ) -> Result<(LedgerBlockHeader, LedgerBlock), LedgerError> {
-        println!("provided offset {}", offset);
         let offset = if offset < self.metadata.borrow().first_block_start_pos() {
             self.metadata.borrow().first_block_start_pos()
         } else {
@@ -449,7 +448,8 @@ impl LedgerMap {
             .map_err(|e| LedgerError::Other(e.to_string()))?;
 
         let block = LedgerBlock::deserialize(buf.as_ref(), block_header.block_version())
-            .map_err(|err| LedgerError::BlockCorrupted(err.to_string()))?;
+            .map_err(|err| LedgerError::BlockCorrupted(err.to_string()))?
+            .with_offset(offset);
 
         Ok((block_header, block))
     }
