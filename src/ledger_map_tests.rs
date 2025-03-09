@@ -4,6 +4,7 @@ mod tests {
 
     use crate::info;
 
+    use crate::ledger_entry::LedgerBlockHeader;
     use crate::{partition_table, LedgerBlock, LedgerEntry, LedgerError, LedgerMap, Operation};
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -395,5 +396,155 @@ mod tests {
         let invalid_pos = second_block_pos + 1000;
         let result = ledger_map.get_block_at_offset(invalid_pos);
         assert!(result.is_err());
+    }
+    #[test]
+    fn test_get_block_from_slice() {
+        // Create a new ledger
+        let ledger_map = new_temp_ledger(None);
+
+        // Create test data: a valid block header and block
+        let entries = vec![
+            LedgerEntry::new("test_label", b"key1", b"value1", Operation::Upsert),
+            LedgerEntry::new("test_label", b"key2", b"value2", Operation::Upsert),
+        ];
+        let timestamp = 12345u64;
+        let parent_hash = vec![1, 2, 3, 4];
+        let block = LedgerBlock::new(entries, timestamp, parent_hash.clone());
+
+        // Serialize the block
+        let block_data = block.serialize().unwrap();
+        let block_len = block_data.len() as u32;
+
+        // Create a header
+        let header = LedgerBlockHeader::new(0, block_len + LedgerBlockHeader::sizeof() as u32);
+        let header_data = header.serialize().unwrap();
+
+        // Combine header and block data
+        let mut test_data = header_data;
+        test_data.extend_from_slice(&block_data);
+
+        // Test successful parsing
+        let result = ledger_map.get_block_from_slice(&test_data);
+
+        let (parsed_header, parsed_block) = result.unwrap();
+        assert_eq!(parsed_header.block_version(), 1);
+        assert_eq!(
+            parsed_header.jump_bytes_next_block(),
+            block_len + LedgerBlockHeader::sizeof() as u32
+        );
+        assert_eq!(parsed_block.entries().len(), 2);
+        assert_eq!(parsed_block.timestamp(), timestamp);
+        assert_eq!(parsed_block.parent_hash(), parent_hash);
+
+        // Test with insufficient data (truncated block)
+        let truncated_data = test_data[..test_data.len() - 10].to_vec();
+        let result = ledger_map.get_block_from_slice(&truncated_data);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            LedgerError::BlockCorrupted(_) => {} // Expected error
+            err => panic!("Unexpected error: {:?}", err),
+        }
+
+        // Test with corrupted header (invalid version)
+        let mut corrupted_data = test_data.clone();
+        corrupted_data[0] = 99; // Set invalid version
+        let result = ledger_map.get_block_from_slice(&corrupted_data);
+        assert!(result.is_err());
+
+        // Test with empty data
+        let result = ledger_map.get_block_from_slice(&[]);
+        assert!(result.is_err());
+
+        // Test with data too small for header
+        let result = ledger_map.get_block_from_slice(&[0, 1, 2]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_iter_raw_from_slice() {
+        // Create a new ledger
+        let ledger_map = new_temp_ledger(None);
+
+        // Create multiple blocks
+        let blocks_count = 3;
+        let mut test_data = Vec::new();
+
+        let mut offset = 0u32;
+        // Create and serialize multiple blocks
+        for i in 0..blocks_count {
+            let entries = vec![LedgerEntry::new(
+                format!("label{}", i),
+                format!("key{}", i).as_bytes(),
+                format!("value{}", i).as_bytes(),
+                Operation::Upsert,
+            )];
+            let timestamp = (i as u64) * 1000;
+            let parent_hash = vec![i as u8; 4];
+            let block = LedgerBlock::new(entries, timestamp, parent_hash);
+
+            let block_data = block.serialize().unwrap();
+            let block_len = block_data.len() as u32;
+            let jump = block_len + LedgerBlockHeader::sizeof() as u32;
+
+            let header = LedgerBlockHeader::new(jump as i32 - offset as i32, jump);
+            offset += jump;
+            let header_data = header.serialize().unwrap();
+
+            test_data.extend_from_slice(&header_data);
+            test_data.extend_from_slice(&block_data);
+        }
+
+        // Test iterating through all blocks
+        let blocks: Vec<_> = ledger_map
+            .iter_raw_from_slice(&test_data)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(blocks.len(), blocks_count);
+
+        // Verify each block's content
+        for (i, (header, block)) in blocks.iter().enumerate() {
+            assert_eq!(header.block_version(), 1);
+            assert_eq!(block.timestamp(), (i as u64) * 1000);
+            assert_eq!(block.entries().len(), 1);
+            assert_eq!(block.entries()[0].label(), format!("label{}", i));
+            assert_eq!(block.entries()[0].key(), format!("key{}", i).as_bytes());
+            assert_eq!(block.entries()[0].value(), format!("value{}", i).as_bytes());
+        }
+
+        // Test with empty data
+        assert_eq!(
+            ledger_map
+                .iter_raw_from_slice(&[])
+                .collect::<Vec<_>>()
+                .len(),
+            0
+        );
+
+        // Test with corrupted data (zero jump length)
+        let mut corrupted_data = test_data.clone();
+        corrupted_data[8] = 0; // Set jump_bytes_next to 0
+        corrupted_data[9] = 0;
+        corrupted_data[10] = 0;
+        corrupted_data[11] = 0;
+
+        let result = ledger_map
+            .iter_raw_from_slice(&corrupted_data)
+            .collect::<Result<Vec<_>, _>>();
+        assert!(result.is_err());
+
+        // Test with partially valid data (first block valid, second corrupted)
+        let mut partially_valid_data = test_data.clone();
+        let first_block_size = blocks[0].0.jump_bytes_next_block() as usize;
+        // Corrupt the second block's header
+        partially_valid_data[first_block_size + 1] = 99; // Invalid version
+
+        let blocks: Vec<_> = ledger_map
+            .iter_raw_from_slice(&partially_valid_data)
+            .take_while(Result::is_ok)
+            .map(Result::unwrap)
+            .collect();
+
+        assert_eq!(blocks.len(), 1); // Only the first block should be valid
     }
 }

@@ -323,6 +323,42 @@ impl LedgerMap {
         })
     }
 
+    pub fn iter_raw_from_slice<'a>(
+        &'a self,
+        data: &'a [u8],
+    ) -> impl Iterator<Item = anyhow::Result<(LedgerBlockHeader, LedgerBlock)>> + 'a {
+        (0..).scan(0usize, move |offset, _| {
+            // End iteration if the offset is at or past the end of the slice.
+            if *offset >= data.len() {
+                return None;
+            }
+            // Ensure there's at least enough bytes to read a header.
+            if data.len() - *offset < LedgerBlockHeader::sizeof() {
+                return None;
+            }
+            // Attempt to parse a block from the current offset.
+            match self.get_block_from_slice(&data[*offset..]) {
+                Ok((header, block)) => {
+                    let jump = header.jump_bytes_next_block() as usize;
+                    // Avoid an infinite loop if jump is zero.
+                    if jump == 0 {
+                        return Some(Err(anyhow::format_err!("Block jump length is zero")));
+                    }
+                    *offset += jump;
+                    Some(Ok((header, block)))
+                }
+                Err(LedgerError::BlockEmpty) => {
+                    // End iteration if a block is empty.
+                    None
+                }
+                Err(err) => Some(Err(anyhow::format_err!(
+                    "Failed to read Ledger block: {}",
+                    err
+                ))),
+            }
+        })
+    }
+
     pub fn get_block_at_offset(
         &self,
         offset: u64,
@@ -333,6 +369,27 @@ impl LedgerMap {
             offset
         };
         self._persisted_block_read(offset)
+    }
+
+    pub fn get_block_from_slice(
+        &self,
+        data: &[u8],
+    ) -> Result<(LedgerBlockHeader, LedgerBlock), LedgerError> {
+        let header_size = LedgerBlockHeader::sizeof();
+        if data.len() < header_size {
+            return Err(LedgerError::BlockCorrupted("Block too short".to_string()));
+        }
+        let block_header = LedgerBlockHeader::deserialize(data)?;
+        let end = block_header.jump_bytes_next_block() as usize;
+
+        // Check if there's enough data for the block payload.
+        if data.len() < end || end < header_size {
+            return Err(LedgerError::BlockCorrupted("Block too short".to_string()));
+        }
+
+        let block =
+            LedgerBlock::deserialize(&data[header_size..end], block_header.block_version())?;
+        Ok((block_header, block))
     }
 
     pub fn get_blocks_count(&self) -> usize {

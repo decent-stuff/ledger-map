@@ -151,7 +151,7 @@ impl LedgerBlockHeader {
 
     pub fn deserialize(data: &[u8]) -> Result<Self, LedgerError> {
         let mut bytes = [0u8; 16];
-        bytes.copy_from_slice(data);
+        bytes.copy_from_slice(&data[0..16]);
         let block_version = u32::from_le_bytes(bytes[0..4].try_into()?);
         match block_version {
             0 => Err(LedgerError::BlockEmpty),
@@ -216,7 +216,7 @@ impl LedgerBlockV1 {
         e.finish()
     }
 
-    pub fn deserialize(data: &[u8]) -> anyhow::Result<Self> {
+    pub fn deserialize(data: &[u8]) -> Result<Self, LedgerError> {
         let mut e = ZlibDecoder::new(data);
         let v = borsh::de::from_reader(&mut e)?;
         Ok(v)
@@ -267,10 +267,10 @@ impl LedgerBlock {
         }
     }
 
-    pub fn deserialize(data: &[u8], version: u32) -> anyhow::Result<Self> {
+    pub fn deserialize(data: &[u8], version: u32) -> Result<Self, LedgerError> {
         match version {
             1 => Ok(LedgerBlock::V1(LedgerBlockV1::deserialize(data)?)),
-            _ => Err(anyhow::anyhow!("Unsupported block version: {}", version)),
+            _ => Err(LedgerError::UnsupportedBlockVersion(version)),
         }
     }
 
