@@ -326,7 +326,7 @@ impl LedgerMap {
     pub fn iter_raw_from_slice<'a>(
         &'a self,
         data: &'a [u8],
-    ) -> impl Iterator<Item = anyhow::Result<(LedgerBlockHeader, LedgerBlock)>> + 'a {
+    ) -> impl Iterator<Item = anyhow::Result<(LedgerBlockHeader, LedgerBlock, Vec<u8>)>> + 'a {
         (0..).scan(0usize, move |offset, _| {
             // End iteration if the offset is at or past the end of the slice.
             if *offset >= data.len() {
@@ -338,7 +338,7 @@ impl LedgerMap {
             }
             // Attempt to parse a block from the current offset.
             match self.get_block_from_slice(&data[*offset..]) {
-                Ok((header, block)) => {
+                Ok((header, block, block_hash)) => {
                     let block_offset = *offset as u64;
                     let jump = header.jump_bytes_next_block() as usize;
                     // Avoid an infinite loop if jump is zero.
@@ -346,7 +346,7 @@ impl LedgerMap {
                         return Some(Err(anyhow::format_err!("Block jump length is zero")));
                     }
                     *offset += jump;
-                    Some(Ok((header, block.with_offset(block_offset))))
+                    Some(Ok((header, block.with_offset(block_offset), block_hash)))
                 }
                 Err(LedgerError::BlockEmpty) => {
                     // End iteration if a block is empty.
@@ -375,7 +375,7 @@ impl LedgerMap {
     pub fn get_block_from_slice(
         &self,
         data: &[u8],
-    ) -> Result<(LedgerBlockHeader, LedgerBlock), LedgerError> {
+    ) -> Result<(LedgerBlockHeader, LedgerBlock, Vec<u8>), LedgerError> {
         let header_size = LedgerBlockHeader::sizeof();
         if data.len() < header_size {
             return Err(LedgerError::BlockCorrupted("Block too short".to_string()));
@@ -390,7 +390,13 @@ impl LedgerMap {
 
         let block =
             LedgerBlock::deserialize(&data[header_size..end], block_header.block_version())?;
-        Ok((block_header, block))
+        let block_hash = Self::_compute_block_chain_hash(
+            block.parent_hash(),
+            block.entries(),
+            block.timestamp(),
+        )
+        .map_err(|e| LedgerError::BlockCorrupted(e.to_string()))?;
+        Ok((block_header, block, block_hash))
     }
 
     pub fn get_blocks_count(&self) -> usize {

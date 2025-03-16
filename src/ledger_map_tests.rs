@@ -426,7 +426,7 @@ mod tests {
         // Test successful parsing
         let result = ledger_map.get_block_from_slice(&test_data);
 
-        let (parsed_header, parsed_block) = result.unwrap();
+        let (parsed_header, parsed_block, block_hash) = result.unwrap();
         assert_eq!(parsed_header.block_version(), 1);
         assert_eq!(
             parsed_header.jump_bytes_next_block(),
@@ -435,6 +435,14 @@ mod tests {
         assert_eq!(parsed_block.entries().len(), 2);
         assert_eq!(parsed_block.timestamp(), timestamp);
         assert_eq!(parsed_block.parent_hash(), parent_hash);
+        assert_eq!(
+            block_hash,
+            // Reference block hash value, manually checked
+            vec![
+                177, 198, 241, 134, 225, 141, 141, 22, 23, 248, 31, 12, 28, 136, 225, 4, 153, 216,
+                221, 225, 99, 159, 155, 79, 183, 71, 23, 177, 109, 79, 233, 34
+            ]
+        );
 
         // Test with insufficient data (truncated block)
         let truncated_data = test_data[..test_data.len() - 10].to_vec();
@@ -502,14 +510,30 @@ mod tests {
 
         assert_eq!(blocks.len(), blocks_count);
 
+        // Reference block hashes, from a good run
+        let expected_block_hashes = vec![
+            vec![
+                59, 212, 243, 209, 119, 48, 119, 30, 19, 102, 137, 70, 162, 25, 101, 154, 229, 58,
+                186, 226, 164, 114, 252, 88, 255, 180, 170, 221, 196, 0, 141, 101,
+            ],
+            vec![
+                202, 133, 25, 97, 117, 141, 6, 71, 57, 235, 24, 42, 72, 240, 55, 77, 162, 50, 248,
+                112, 134, 108, 141, 167, 94, 153, 133, 36, 68, 242, 182, 8,
+            ],
+            vec![
+                220, 198, 211, 163, 110, 214, 216, 209, 190, 249, 63, 226, 216, 126, 130, 146, 171,
+                91, 117, 196, 235, 217, 209, 46, 7, 193, 168, 171, 255, 200, 96, 149,
+            ],
+        ];
         // Verify each block's content
-        for (i, (header, block)) in blocks.iter().enumerate() {
+        for (i, (header, block, block_hash)) in blocks.iter().enumerate() {
             assert_eq!(header.block_version(), 1);
             assert_eq!(block.timestamp(), (i as u64) * 1000);
             assert_eq!(block.entries().len(), 1);
             assert_eq!(block.entries()[0].label(), format!("label{}", i));
             assert_eq!(block.entries()[0].key(), format!("key{}", i).as_bytes());
             assert_eq!(block.entries()[0].value(), format!("value{}", i).as_bytes());
+            assert_eq!(*block_hash, expected_block_hashes[i]);
         }
 
         // Test with empty data
