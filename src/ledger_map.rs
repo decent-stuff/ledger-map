@@ -345,7 +345,7 @@ impl LedgerMap {
                         return Some(Err(anyhow::format_err!("Block jump length is zero")));
                     }
                     *offset += jump;
-                    Some(Ok((header, block)))
+                    Some(Ok((header, block.with_offset(*offset as u64))))
                 }
                 Err(LedgerError::BlockEmpty) => {
                     // End iteration if a block is empty.
