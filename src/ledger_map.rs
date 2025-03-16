@@ -339,13 +339,14 @@ impl LedgerMap {
             // Attempt to parse a block from the current offset.
             match self.get_block_from_slice(&data[*offset..]) {
                 Ok((header, block)) => {
+                    let block_offset = *offset as u64;
                     let jump = header.jump_bytes_next_block() as usize;
                     // Avoid an infinite loop if jump is zero.
                     if jump == 0 {
                         return Some(Err(anyhow::format_err!("Block jump length is zero")));
                     }
                     *offset += jump;
-                    Some(Ok((header, block.with_offset(*offset as u64))))
+                    Some(Ok((header, block.with_offset(block_offset))))
                 }
                 Err(LedgerError::BlockEmpty) => {
                     // End iteration if a block is empty.
