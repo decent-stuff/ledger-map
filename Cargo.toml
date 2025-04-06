@@ -21,21 +21,21 @@ ahash = { version = "0.8.11", default-features = false, features = [
 ] }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 borsh = { version = "1.5.7", features = ["derive"] }
-flate2 = { version = "1.1.0", features = [
+flate2 = { version = "1.1.1", features = [
     "rust_backend",
 ], default-features = false }
 hex = "0.4.3"
-indexmap = { version = "2.8.0", features = ["std"] }
+indexmap = { version = "2.9.0", features = ["std"] }
 lazy_static = "1.5.0"
 serde = { version = "1.0.219", features = ["derive"] }
 sha2 = "0.10.8"
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
-clap = "4.5.34"
+clap = "4.5.35"
 fs-err = "3.1.0"
 log = "0.4.27"
 dirs = "6.0.0"
-env_logger = "0.11.7"
+env_logger = "0.11.8"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 ic-cdk = { version = "0.17.1", optional = true }
