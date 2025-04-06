@@ -160,6 +160,15 @@ impl LedgerMap {
         self._insert_entry_into_next_block(label, key, value, Operation::Upsert)
     }
 
+    pub fn put<S: AsRef<str>, K: AsRef<[u8]>, V: AsRef<[u8]>>(
+        &mut self,
+        label: S,
+        key: K,
+        value: V,
+    ) -> Result<(), LedgerError> {
+        self.upsert(label, key, value)
+    }
+
     pub fn delete<S: AsRef<str>, K: AsRef<[u8]>>(
         &mut self,
         label: S,
