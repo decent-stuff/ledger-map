@@ -13,7 +13,7 @@ use anyhow::Result;
 use borsh::to_vec;
 use indexmap::IndexMap;
 use sha2::Digest;
-use std::cell::RefCell;
+use std::{cell::RefCell, mem::size_of};
 
 #[derive(Debug)]
 pub struct LedgerMap {
@@ -283,6 +283,22 @@ impl LedgerMap {
                 .filter(|entry| entry.operation() == Operation::Upsert)
                 .collect::<Vec<_>>()
                 .into_iter(),
+        }
+    }
+
+    pub fn for_each<F>(&self, label: &str, mut f: F)
+    where
+        F: FnMut(&[u8], &[u8]),
+    {
+        if let Some(entries) = self.entries.get(label) {
+            for (key, entry) in entries.iter() {
+                f(key.as_slice(), entry.value());
+            }
+        }
+        if let Some(entries) = self.next_block_entries.get(label) {
+            for (key, entry) in entries.iter() {
+                f(key.as_slice(), entry.value());
+            }
         }
     }
 

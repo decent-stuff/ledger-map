@@ -571,4 +571,44 @@ mod tests {
 
         assert_eq!(blocks.len(), 1); // Only the first block should be valid
     }
+
+    #[test]
+    fn test_for_each() {
+        let mut ledger_map = new_temp_ledger(None);
+
+        // Insert test data
+        let keys = vec![b"key1".to_vec(), b"key2".to_vec(), b"key3".to_vec()];
+        let values = vec![b"value1".to_vec(), b"value2".to_vec(), b"value3".to_vec()];
+        
+        // Insert entries and commit
+        ledger_map.upsert("Label1", keys[0].clone(), values[0].clone()).unwrap();
+        ledger_map.upsert("Label1", keys[1].clone(), values[1].clone()).unwrap();
+        ledger_map.commit_block().unwrap();
+        ledger_map.upsert("Label1", keys[2].clone(), values[2].clone()).unwrap();
+
+        // Use for_each to collect entries
+        let mut collected = Vec::new();
+        ledger_map.for_each("Label1", |key, value| {
+            collected.push((key.to_vec(), value.to_vec()));
+        });
+
+        // Sort collected data for consistent comparison
+        collected.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Verify all entries were visited
+        assert_eq!(collected.len(), 3);
+        assert_eq!(collected[0].0, keys[0]);
+        assert_eq!(collected[0].1, values[0]);
+        assert_eq!(collected[1].0, keys[1]);
+        assert_eq!(collected[1].1, values[1]);
+        assert_eq!(collected[2].0, keys[2]);
+        assert_eq!(collected[2].1, values[2]);
+
+        // Test with non-existent label
+        let mut empty_collected = Vec::new();
+        ledger_map.for_each("NonExistentLabel", |key, value| {
+            empty_collected.push((key.to_vec(), value.to_vec()));
+        });
+        assert!(empty_collected.is_empty());
+    }
 }
