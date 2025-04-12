@@ -40,6 +40,40 @@ mod tests {
     }
 
     #[test]
+    fn test_get_num_entries_for_label() {
+        let mut ledger_map = new_temp_ledger(None);
+
+        // Test empty state
+        assert_eq!(ledger_map.count_entries_for_label("Label1"), 0);
+
+        // Add some entries and test uncommitted state
+        ledger_map.upsert("Label1", b"key1", b"value1").unwrap();
+        ledger_map.upsert("Label1", b"key2", b"value2").unwrap();
+        ledger_map.upsert("Label2", b"key3", b"value3").unwrap();
+
+        assert_eq!(ledger_map.count_entries_for_label("Label1"), 2);
+        assert_eq!(ledger_map.count_entries_for_label("Label2"), 1);
+        assert_eq!(ledger_map.count_entries_for_label("Label3"), 0);
+
+        // Test after commit
+        ledger_map.commit_block().unwrap();
+        assert_eq!(ledger_map.count_entries_for_label("Label1"), 2);
+        assert_eq!(ledger_map.count_entries_for_label("Label2"), 1);
+
+        // Test with combination of committed and uncommitted entries
+        ledger_map.upsert("Label1", b"key4", b"value4").unwrap();
+        ledger_map.upsert("Label2", b"key5", b"value5").unwrap();
+        assert_eq!(ledger_map.count_entries_for_label("Label1"), 3);
+        assert_eq!(ledger_map.count_entries_for_label("Label2"), 2);
+
+        // Test after deleting entries
+        ledger_map.delete("Label1", b"key1").unwrap();
+        assert_eq!(ledger_map.count_entries_for_label("Label1"), 4);  // Delete operation adds a tombstone entry
+        ledger_map.commit_block().unwrap();
+        assert_eq!(ledger_map.count_entries_for_label("Label1"), 3);  // Tombstone remains after commit
+    }
+
+    #[test]
     fn test_compute_cumulative_hash() {
         let parent_hash = vec![0, 1, 2, 3];
         let key = vec![4, 5, 6, 7];

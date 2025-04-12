@@ -151,6 +151,17 @@ impl LedgerMap {
         Err(LedgerError::EntryNotFound)
     }
 
+    pub fn count_entries_for_label<S: AsRef<str>>(&self, label: S) -> u64 {
+        self.entries
+            .get(label.as_ref())
+            .map(|m| m.len() as u64)
+            .unwrap_or_default()
+            + self
+                .next_block_entries
+                .get(label.as_ref()).map(|m| m.len() as u64)
+                .unwrap_or_default()
+    }
+
     pub fn upsert<S: AsRef<str>, K: AsRef<[u8]>, V: AsRef<[u8]>>(
         &mut self,
         label: S,
