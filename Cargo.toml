@@ -15,7 +15,7 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-anyhow = { version = "1.0.97", features = ["std"] }
+anyhow = { version = "1.0.98", features = ["std"] }
 ahash = { version = "0.8.11", default-features = false, features = [
     "compile-time-rng",
 ] }
