@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = { version = "1.0.98", features = ["std"] }
-ahash = { version = "0.8.11", default-features = false, features = [
+ahash = { version = "0.8.12", default-features = false, features = [
     "compile-time-rng",
 ] }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
