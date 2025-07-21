@@ -630,7 +630,7 @@ dependencies = [
  "ic-cdk-macros",
  "ic-error-types",
  "ic-management-canister-types",
- "ic0 1.0.0",
+ "ic0",
  "serde",
  "serde_bytes",
  "slotmap",
@@ -661,14 +661,14 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk-timers"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06eca8e4f5077b92b192ff74a4d6066f3651eb2cc60c00c5d390d022332827a3"
+checksum = "9ea87cf31444de833db85bbd15e97bc135ee14529b13158ffdaf6530bf6d7e85"
 dependencies = [
  "candid",
  "futures",
  "ic-cdk",
- "ic0 0.25.1",
+ "ic0",
  "serde",
  "serde_bytes",
  "slotmap",
@@ -695,12 +695,6 @@ dependencies = [
  "serde",
  "serde_bytes",
 ]
-
-[[package]]
-name = "ic0"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39a4ced1c92f952a12e554742ffa7d21752a02450930c3b76bea78a2f1b7ab16"
 
 [[package]]
 name = "ic0"
