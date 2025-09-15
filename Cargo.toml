@@ -27,7 +27,7 @@ flate2 = { version = "1.1.2", features = [
 hex = "0.4.3"
 indexmap = { version = "2.11.0", features = ["std"] }
 lazy_static = "1.5.0"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.223", features = ["derive"] }
 sha2 = "0.10.9"
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
