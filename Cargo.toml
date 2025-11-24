@@ -25,7 +25,7 @@ flate2 = { version = "1.1.5", features = [
     "rust_backend",
 ], default-features = false }
 hex = "0.4.3"
-indexmap = { version = "2.11.4", features = ["std"] }
+indexmap = { version = "2.12.1", features = ["std"] }
 lazy_static = "1.5.0"
 serde = { version = "1.0.228", features = ["derive"] }
 sha2 = "0.10.9"
